@@ -1,0 +1,11 @@
+# Copy to local_paths.cfg and fill in paths for this machine.
+# local_paths.cfg is gitignored — never commit it.
+#
+# Mac example:
+#   medevac_db = /Users/yourname/CursorProjects/medevac_db
+#
+# Windows example (forward slashes):
+#   medevac_db = C:/Users/brian.rice/Python Projects/medevac_db
+
+[paths]
+medevac_db = /path/to/medevac_db

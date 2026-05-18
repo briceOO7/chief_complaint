@@ -1,0 +1,33 @@
+# chief_complaint — CEDIS chief complaint labeling and evaluation
+# Python 3.10+ required
+
+# Core
+pandas>=2.0.0
+numpy>=1.21.0
+tqdm>=4.65.0
+
+# Rule-based classifier
+rapidfuzz>=3.0.0
+scikit-learn>=1.0.0
+
+# LLM panel (APIs)
+openai>=1.0.0
+anthropic>=0.20.0
+google-generativeai>=0.5.0
+httpx>=0.24.0
+python-dotenv>=1.0.0
+
+# BERT fine-tuning
+torch>=2.0.0
+transformers>=4.30.0
+sentencepiece>=0.1.99
+accelerate>=0.20.0
+datasets>=2.14.0
+
+# Evaluation
+scipy>=1.10.0          # Cohen's kappa, stats
+matplotlib>=3.7.0      # confusion matrix plots
+seaborn>=0.12.0
+
+# Utilities
+requests>=2.28.0

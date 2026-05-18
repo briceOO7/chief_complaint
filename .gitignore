@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# PHI data — never commit
+data/raw/
+data/hand_labels/*_phi*.csv
+data/hand_labels/medevac_labelled.csv
+
+# Model weights
+models/
+
+# Secrets
+.env
+local_paths.cfg
+
+# Results with PHI
+data/results/*_phi*.csv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# Allow these tracked files in otherwise-ignored dirs
+!data/hand_labels/chief_complaints_medevac_all_corpus_deid.csv
+!data/hand_labels/gold_labelled_combined_20260302_134139_n8819.csv
+!data/hand_labels/train.csv
+!data/hand_labels/test.csv
+!data/abbreviations/
+!data/results/.gitkeep
+!models/.gitkeep

@@ -1,0 +1,262 @@
+text,cedis_code,cedis_complaint,domain,source,rule_applied
+open tibia,802,Major trauma—blunt,Trauma,silver,
+head trauma,407,Head injury,Neurologic,silver,
+open <DATE_TIME> finger,704,Laceration/puncture,Skin,silver,
+Acute ABD,251,Abdominal pain,Gastrointestinal,silver,
+L sided facial droop - stroke,409,Extremity weakness/symptoms of CVA,Neurologic,rule,CVA_STROKE
+L hip[ fx,557,Lower extremity injury,Orthopedic,silver,
+hypoxia,651,Shortness of breath,Respiratory,rule,RESPIRATORY_DISTRESS
+afib + RVR,5,Palpitations/irregular heart beat,Cardiovascular,rule,AFIB_RVR
+"Head trauma, blood thinners, gait instability",407,Head injury,Neurologic,silver,
+Acute allergic reaction,657,Allergic reaction,Respiratory,rule,ALLERGIC_REACTION
+A Fib RVR,5,Palpitations/irregular heart beat,Cardiovascular,rule,AFIB_RVR
+hernia bs,256,Groin pain/mass,Gastrointestinal,silver,
+ATV accident,802,Major trauma—blunt,Trauma,silver,
+poverdose tylenol,752,Overdose ingestion,Substance Misuse,rule,OVERDOSE
+R Leg Pain,555,Lower extremity pain,Orthopedic,silver,
+cholecystitis,251,Abdominal pain,Gastrointestinal,rule,CHOLECYSTITIS
+distal femur fracture,557,Lower extremity injury,Orthopedic,rule,FEMUR_FRACTURE
+fell/hip,557,Lower extremity injury,Orthopedic,silver,
+"Faltering growth, abdominal pain and distention, hyperbilirubinemia",263,Abdominal mass/distention,Gastrointestinal,silver,
+pancreatitis,866,Minor complaints NOS,General and Minor,silver,
+<DATE_TIME> gestation ctx,458,"Pregnancy issues, >20 weeks",OB/GYN,silver,
+sz-like activity/fever,405,Seizure,Neurologic,silver,
+odontogenic facial cellulitis,709,Localized swelling/redness,Skin,rule,LOCALIZED_INFECTION
+<PERSON> pain,551,Back pain,Orthopedic,silver,
+Resp distress/O2 dependent,651,Shortness of breath,Respiratory,rule,RESPIRATORY_DISTRESS
+Fever for <DATE_TIME>,852,Fever,General and Minor,silver,
+Nausea / vomiting / Si,257,Nausea and/or vomiting,Gastrointestinal,silver,
+nasal laceration,155,Nasal trauma,ENT - Nose,silver,
+cp dizziness,3,Chest pain—cardiac features,Cardiovascular,silver,
+perforated bowel,251,Abdominal pain,Gastrointestinal,rule,BOWEL_PERFORATION
+peritonsillar abscess,709,Localized swelling/redness,Skin,rule,LOCALIZED_INFECTION
+Ankle fracture (L),557,Lower extremity injury,Orthopedic,silver,
+hip fx,557,Lower extremity injury,Orthopedic,rule,FEMUR_FRACTURE
+abnormal uterine bleeding,455,Vaginal bleed,OB/GYN,silver,
+AICD fired Vtach runs,860,Medical device problem,General and Minor,silver,
+hypo,854,Hypoglycemia,General and Minor,silver,
+vomiting,257,Nausea and/or vomiting,Gastrointestinal,silver,
+Ac appendicitis,251,Abdominal pain,Gastrointestinal,silver,
+Psychosis and SI,353,Hallucinations/delusions,Mental Health,rule,PSYCHOSIS
+elevated intraocular pressure,504,Visual disturbance,Ophthalmology,silver,
+head injurt,407,Head injury,Neurologic,silver,
+cervical spine injury,552,Traumatic back/spine injury,Orthopedic,silver,
+"Chest Pain,/ <LOCATION>",3,Chest pain—cardiac features,Cardiovascular,silver,
+fish bone stuck in throat,106,Difficulty swallowing/dysphagia,ENT - Mouth/Throat/Neck,silver,
+face trauma,102,Facial trauma,ENT - Mouth/Throat/Neck,silver,
+choak on foreign body,656,Respiratory foreign body,Respiratory,silver,
+Chest Pain,3,Chest pain—cardiac features,Cardiovascular,silver,
+"Pregnant, bleeding",455,Vaginal bleed,OB/GYN,silver,
+chest pain,3,Chest pain—cardiac features,Cardiovascular,silver,
+"Hypertensive emergency, Possible CUA",6,Hypertension,Cardiovascular,silver,
+excerbation,866,Minor complaints NOS,General and Minor,silver,
+Resp Distress,651,Shortness of breath,Respiratory,rule,RESPIRATORY_DISTRESS
+bronchitis,154,URTI complaints,ENT - Nose,silver,
+Severe acute exacerbation of,866,Minor complaints NOS,General and Minor,silver,
+Preeclampsia,455,Vaginal bleed,OB/GYN,rule,PPH_OBSTETRIC_BLEED
+"ataxia , vertigo",406,Gait disturbance/ataxia,Neurologic,silver,
+"AMS, fall",401,Altered level of consciousness,Neurologic,silver,
+overdose acetaminophen,752,Overdose ingestion,Substance Misuse,rule,OVERDOSE
+resp failure,652,Respiratory arrest,Respiratory,rule,RESPIRATORY_ARREST
+Bowel perforation,251,Abdominal pain,Gastrointestinal,rule,BOWEL_PERFORATION
+GSW Foot,801,Major trauma—penetrating,Trauma,rule,MAJOR_TRAUMA_PENETRATING
+Stroke,409,Extremity weakness/symptoms of CVA,Neurologic,rule,CVA_STROKE
+complete Heart Block,1,Cardiac arrest (non-traumatic),Cardiovascular,silver,
+<PERSON> Possible appy,251,Abdominal pain,Gastrointestinal,silver,
+chest paint,4,Chest pain—non-cardiac features,Cardiovascular,silver,
+MVA,802,Major trauma—blunt,Trauma,rule,MAJOR_TRAUMA_BLUNT
+"feer, abd pain",852,Fever,General and Minor,silver,
+hanging,351,Depression/suicidal/deliberate self-harm,Mental Health,silver,
+"MUA, Head Injury",407,Head injury,Neurologic,silver,
+stab wound,801,Major trauma—penetrating,Trauma,rule,MAJOR_TRAUMA_PENETRATING
+lacerations intoxication,704,Laceration/puncture,Skin,silver,
+Arm fracture,556,Upper extremity injury,Orthopedic,silver,
+epistaxix,151,Epistaxis,ENT - Nose,silver,
+Intentional O/D,752,Overdose ingestion,Substance Misuse,silver,
+Preterm contractions,458,"Pregnancy issues, >20 weeks",OB/GYN,rule,PREGNANCY_LATE
+UGIB,260,Blood in stool/melena,Gastrointestinal,rule,GI_BLEED
+LAC w/ possible,704,Laceration/puncture,Skin,silver,
+facial,102,Facial trauma,ENT - Mouth/Throat/Neck,silver,
+L sided weak,409,Extremity weakness/symptoms of CVA,Neurologic,silver,
+ABD pregnancy,457,"Pregnancy issues, <20 weeks",OB/GYN,silver,
+found unconscious,401,Altered level of consciousness,Neurologic,silver,
+"Seizures, tertiary syphilis?",405,Seizure,Neurologic,silver,
+OB,457,"Pregnancy issues, <20 weeks",OB/GYN,silver,
+Eye trauma,510,Eye trauma,Ophthalmology,silver,
+osteomyelitis,866,Minor complaints NOS,General and Minor,silver,
+"R knee pain, concern for septic arthropathy",558,Joint(s) swelling,Orthopedic,rule,SEPTIC_ARTHRITIS
+complex facial laceration,704,Laceration/puncture,Skin,silver,
+ABD Pain,251,Abdominal pain,Gastrointestinal,silver,
+multiple stab wounds,801,Major trauma—penetrating,Trauma,rule,MAJOR_TRAUMA_PENETRATING
+Ascited,263,Abdominal mass/distention,Gastrointestinal,silver,
+hip and low back pain,555,Lower extremity pain,Orthopedic,silver,
+agitation,352,Anxiety/situational crisis,Mental Health,silver,
+altered mental status/snow machine accident,802,Major trauma—blunt,Trauma,silver,
+A Fib,5,Palpitations/irregular heart beat,Cardiovascular,silver,
+forearm FX,556,Upper extremity injury,Orthopedic,rule,FOREARM_FRACTURE
+L side wekaness,409,Extremity weakness/symptoms of CVA,Neurologic,silver,
+GI bleed/Bowel obstruction,251,Abdominal pain,Gastrointestinal,rule,BOWEL_OBSTRUCTION
+Ingested foreign body,265,Oral/esophageal foreign body,Gastrointestinal,silver,
+"SI, at risk adult",351,Depression/suicidal/deliberate self-harm,Mental Health,silver,
+Abnormal Uterine,455,Vaginal bleed,OB/GYN,silver,
+"seizures, head injury",407,Head injury,Neurologic,silver,
+head/neck trauma,552,Traumatic back/spine injury,Orthopedic,silver,
+seizures status,405,Seizure,Neurologic,silver,
+Lightheaded,8,Syncope/pre-syncope,Cardiovascular,silver,
+HF/COVID,653,Cough/congestion,Respiratory,rule,COVID
+TIA/ Stroke,409,Extremity weakness/symptoms of CVA,Neurologic,rule,CVA_STROKE
+Trauma,802,Major trauma—blunt,Trauma,silver,
+"SI, alcohol intoxication",751,Substance misuse/intoxication,Substance Misuse,silver,
+Left eye trauma,510,Eye trauma,Ophthalmology,silver,
+"open fracture, left foot",802,Major trauma—blunt,Trauma,silver,
+Neck / Head pain,404,Headache,Neurologic,silver,
+Fever Post Delivery,865,Post-operative complications,General and Minor,silver,
+Trauma accident,802,Major trauma—blunt,Trauma,silver,
+Stab injury abd,801,Major trauma—penetrating,Trauma,rule,MAJOR_TRAUMA_PENETRATING
+R Hip Disclocation,555,Lower extremity pain,Orthopedic,silver,
+Severe Bleeding,151,Epistaxis,ENT - Nose,silver,
+fx tib fib L,557,Lower extremity injury,Orthopedic,silver,
+abdominal pain in pregnancy,458,"Pregnancy issues, >20 weeks",OB/GYN,silver,
+sever trombocytopenia,864,Pallor/anemia,General and Minor,silver,
+seizure disorder,405,Seizure,Neurologic,silver,
+Confusion,402,Confusion,Neurologic,silver,
+Spontaneous abortion,457,"Pregnancy issues, <20 weeks",OB/GYN,silver,
+Stroke s/p tpa,865,Post-operative complications,General and Minor,rule,POST_OP
+"Vomiting, GI bleed, confusion",260,Blood in stool/melena,Gastrointestinal,rule,GI_BLEED
+Vaginal bleeding 2nd trimester,457,"Pregnancy issues, <20 weeks",OB/GYN,rule,PREGNANCY_EARLY
+motorcycle crash,802,Major trauma—blunt,Trauma,silver,
+Left ankle injury,556,Upper extremity injury,Orthopedic,silver,
+displaced rib,804,Isolated chest trauma—blunt,Trauma,silver,
+ETOH withdrawal,753,Substance withdrawal,Substance Misuse,rule,SUBSTANCE_WITHDRAWAL
+vomiting blood,259,Vomiting blood,Gastrointestinal,silver,
+Epideral Hematoma,407,Head injury,Neurologic,silver,
+R prox humerus fx,556,Upper extremity injury,Orthopedic,silver,
+Leg Cellulitis,709,Localized swelling/redness,Skin,rule,LOCALIZED_INFECTION
+cardiac arrest,1,Cardiac arrest (non-traumatic),Cardiovascular,rule,CARDIAC_ARREST
+<PERSON> pain c/f appendicitis,251,Abdominal pain,Gastrointestinal,silver,
+SDH/SAH,407,Head injury,Neurologic,silver,
+abnormal uterine blood,455,Vaginal bleed,OB/GYN,silver,
+Right LE Edema,10,Bilateral leg swelling/edema,Cardiovascular,silver,
+"LOC, EKG changes",401,Altered level of consciousness,Neurologic,silver,
+patella disclocation,557,Lower extremity injury,Orthopedic,silver,
+tylenol OD,752,Overdose ingestion,Substance Misuse,rule,OVERDOSE
+r/o CVA,409,Extremity weakness/symptoms of CVA,Neurologic,rule,CVA_STROKE
+COVID/Pneumonia Hypoxia,653,Cough/congestion,Respiratory,rule,COVID
+unable to move arms,409,Extremity weakness/symptoms of CVA,Neurologic,silver,
+early labor,458,"Pregnancy issues, >20 weeks",OB/GYN,rule,PREGNANCY_LATE
+Gross hematuria w/ substantial drop in <NRP>,302,Hematuria,Genitourinary,silver,
+Belly Pain,251,Abdominal pain,Gastrointestinal,silver,
+STEMI,3,Chest pain—cardiac features,Cardiovascular,rule,STEMI_NSTEMI
+Closed head injury,407,Head injury,Neurologic,silver,
+sever back pain,551,Back pain,Orthopedic,silver,
+suicide attemp,351,Depression/suicidal/deliberate self-harm,Mental Health,rule,SUICIDAL
+shortnss of breath,651,Shortness of breath,Respiratory,silver,
+Cardiopulmonary arrest,1,Cardiac arrest (non-traumatic),Cardiovascular,silver,
+R hip hematoma,716,Spontaneous bruising,Skin,silver,
+Tylenol OD,752,Overdose ingestion,Substance Misuse,rule,OVERDOSE
+R Hip fracture,557,Lower extremity injury,Orthopedic,rule,FEMUR_FRACTURE
+oD,752,Overdose ingestion,Substance Misuse,rule,OVERDOSE
+Cholecystitis,251,Abdominal pain,Gastrointestinal,rule,CHOLECYSTITIS
+Attempted Hanging,351,Depression/suicidal/deliberate self-harm,Mental Health,silver,
+L2 Burst Fracture,552,Traumatic back/spine injury,Orthopedic,silver,
+R Hip Dislocation,557,Lower extremity injury,Orthopedic,silver,
+Alleged Assault,802,Major trauma—blunt,Trauma,silver,
+pain L 4th Toe,457,"Pregnancy issues, <20 weeks",OB/GYN,rule,PREGNANCY_EARLY
+Asthma,659,Wheezing—no other complaints,Respiratory,silver,
+Ischemic stroke s/p tPA,865,Post-operative complications,General and Minor,rule,POST_OP
+Hypothermia arrest,205,Hypothermia,Environmental,rule,HYPOTHERMIA
+Tib/ Fib Fx,557,Lower extremity injury,Orthopedic,silver,
+"psychosis, SI",353,Hallucinations/delusions,Mental Health,rule,PSYCHOSIS
+"suicide attempt, intoxication",351,Depression/suicidal/deliberate self-harm,Mental Health,rule,SUICIDAL
+Head trauma,407,Head injury,Neurologic,silver,
+Hematemesis,259,Vomiting blood,Gastrointestinal,silver,
+thermal injuries,705,Burn,Skin,silver,
+fall,866,Minor complaints NOS,General and Minor,silver,
+Hypotensive,866,Minor complaints NOS,General and Minor,silver,
+"Hip fracture, Prob TB",557,Lower extremity injury,Orthopedic,rule,FEMUR_FRACTURE
+respiratory failure,651,Shortness of breath,Respiratory,rule,RESPIRATORY_DISTRESS
+contractions/ <DATE_TIME> pregnanct,458,"Pregnancy issues, >20 weeks",OB/GYN,rule,PREGNANCY_LATE
+L sided weakness and <LOCATION>,409,Extremity weakness/symptoms of CVA,Neurologic,silver,
+pregnancy,457,"Pregnancy issues, <20 weeks",OB/GYN,silver,
+tension ptx,651,Shortness of breath,Respiratory,silver,
+"pre term child, resp distress",651,Shortness of breath,Respiratory,rule,RESPIRATORY_DISTRESS
+Left Leg Pain,555,Lower extremity pain,Orthopedic,silver,
+Pregnant with bleeding,455,Vaginal bleed,OB/GYN,silver,
+COVID resp distress,653,Cough/congestion,Respiratory,rule,COVID
+possible stroke,409,Extremity weakness/symptoms of CVA,Neurologic,rule,CVA_STROKE
+"Obtunded, c/f overdose",752,Overdose ingestion,Substance Misuse,rule,OVERDOSE
+"SOB, CP, tachycardia",651,Shortness of breath,Respiratory,rule,RESPIRATORY_DISTRESS
+"assault, head injury",407,Head injury,Neurologic,silver,
+Fever New born,869,Newly Born,General and Minor,silver,
+"Infant fever, apnea",660,Apneic spells in infants,Respiratory,silver,
+Ideation,351,Depression/suicidal/deliberate self-harm,Mental Health,silver,
+R anckle fx,557,Lower extremity injury,Orthopedic,silver,
+ABD,251,Abdominal pain,Gastrointestinal,silver,
+Right LQ pain,251,Abdominal pain,Gastrointestinal,silver,
+hemoptysis,655,Hemoptysis,Respiratory,silver,
+"chest pain, SOB",651,Shortness of breath,Respiratory,rule,RESPIRATORY_DISTRESS
+neck,104,Neck swelling/pain,ENT - Mouth/Throat/Neck,silver,
+Elevated troponin with near syncope,8,Syncope/pre-syncope,Cardiovascular,silver,
+palpitation,5,Palpitations/irregular heart beat,Cardiovascular,silver,
+pulmonary embolism,651,Shortness of breath,Respiratory,silver,
+vaginal bleeding in pregnancy,458,"Pregnancy issues, >20 weeks",OB/GYN,silver,
+suicide attempt by hanging,351,Depression/suicidal/deliberate self-harm,Mental Health,rule,SUICIDAL
+stab to chest,801,Major trauma—penetrating,Trauma,rule,MAJOR_TRAUMA_PENETRATING
+ETOH Withdrawal/ DTS,753,Substance withdrawal,Substance Misuse,rule,SUBSTANCE_WITHDRAWAL
+open fracture,802,Major trauma—blunt,Trauma,silver,
+Neck abscess,709,Localized swelling/redness,Skin,rule,LOCALIZED_INFECTION
+cholerystitis,866,Minor complaints NOS,General and Minor,silver,
+New onset Afib,5,Palpitations/irregular heart beat,Cardiovascular,rule,AFIB_RVR
+OD metformin,752,Overdose ingestion,Substance Misuse,rule,OVERDOSE
+hypertensive emergency,6,Hypertension,Cardiovascular,silver,
+Physician eval,855,Direct referral for consultation,General and Minor,silver,
+"Seizure, likely ETOH withdrawal",753,Substance withdrawal,Substance Misuse,rule,SUBSTANCE_WITHDRAWAL
+pre-eclampsia,455,Vaginal bleed,OB/GYN,rule,PPH_OBSTETRIC_BLEED
+"Decreased intake, decreased weight, wheezing",659,Wheezing—no other complaints,Respiratory,silver,
+"abscess, dm foot infection",709,Localized swelling/redness,Skin,rule,LOCALIZED_INFECTION
+intractable back pain,551,Back pain,Orthopedic,silver,
+Diverticulitis,251,Abdominal pain,Gastrointestinal,silver,
+<PERSON> pain,555,Lower extremity pain,Orthopedic,silver,
+testicular torsion,305,Scrotal pain and/or swelling,Genitourinary,silver,
+L Shoulder deformity,556,Upper extremity injury,Orthopedic,silver,
+"nausea, vomiting, poisioning?",257,Nausea and/or vomiting,Gastrointestinal,silver,
+Gallstone pancreatitis,251,Abdominal pain,Gastrointestinal,silver,
+chest Pain,3,Chest pain—cardiac features,Cardiovascular,silver,
+"AMS, seizure",405,Seizure,Neurologic,silver,
+Abd pain/free air in <LOCATION>,251,Abdominal pain,Gastrointestinal,silver,
+UTI Pyeloniphritis,307,UTI complaints,Genitourinary,silver,
+T-12 fracture,457,"Pregnancy issues, <20 weeks",OB/GYN,rule,PREGNANCY_EARLY
+Rt Hip dislocation,557,Lower extremity injury,Orthopedic,silver,
+Bleeding ABP Pain,455,Vaginal bleed,OB/GYN,silver,
+Left femur fracture,557,Lower extremity injury,Orthopedic,rule,FEMUR_FRACTURE
+collapse,8,Syncope/pre-syncope,Cardiovascular,silver,
+Obstipation,253,Constipation,Gastrointestinal,silver,
+AMS (GCS) Respiratory distress,651,Shortness of breath,Respiratory,rule,RESPIRATORY_DISTRESS
+shortness of breath,651,Shortness of breath,Respiratory,rule,RESPIRATORY_DISTRESS
+Vision Loss,504,Visual disturbance,Ophthalmology,silver,
+Chest Inj,804,Isolated chest trauma—blunt,Trauma,silver,
+resp. distress,651,Shortness of breath,Respiratory,silver,
+Elbow fracture,556,Upper extremity injury,Orthopedic,silver,
+"fatigue, anemia",864,Pallor/anemia,General and Minor,silver,
+MRSA,851,Exposure to communicable disease,General and Minor,silver,
+"RSV, hypoxia",651,Shortness of breath,Respiratory,rule,RESPIRATORY_DISTRESS
+respiratory distress/ COVID PNA,651,Shortness of breath,Respiratory,rule,COVID_PNEUMONIA
+significant burns,705,Burn,Skin,silver,
+AFB RVR,5,Palpitations/irregular heart beat,Cardiovascular,rule,AFIB_RVR
+urosepsis w/ obstructing stone,307,UTI complaints,Genitourinary,silver,
+delirium,402,Confusion,Neurologic,silver,
+Fever in <DATE_TIME> old,852,Fever,General and Minor,silver,
+Intentional Overdose,752,Overdose ingestion,Substance Misuse,rule,OVERDOSE
+LOC+ NIV,401,Altered level of consciousness,Neurologic,silver,
+contractions/no pre natal care,458,"Pregnancy issues, >20 weeks",OB/GYN,rule,PREGNANCY_LATE
+ulcer,711,Other skin conditions,Skin,silver,
+Choledocholithiasis,251,Abdominal pain,Gastrointestinal,rule,CHOLECYSTITIS
+2nd degree burns,457,"Pregnancy issues, <20 weeks",OB/GYN,rule,PREGNANCY_EARLY
+ATV/high Speed,802,Major trauma—blunt,Trauma,silver,
+finger infection,709,Localized swelling/redness,Skin,rule,LOCALIZED_INFECTION
+Trauma from fall,802,Major trauma—blunt,Trauma,silver,
+"ascites, pleural",263,Abdominal mass/distention,Gastrointestinal,silver,
+R Hip Fx,557,Lower extremity injury,Orthopedic,rule,FEMUR_FRACTURE
+OD tylenol,752,Overdose ingestion,Substance Misuse,rule,OVERDOSE
+"Testicular pain, r/o testicular torsion",305,Scrotal pain and/or swelling,Genitourinary,silver,
+post partum,457,"Pregnancy issues, <20 weeks",OB/GYN,silver,

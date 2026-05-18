@@ -1,0 +1,116 @@
+text,cedis_code,cedis_complaint,domain,source,rule_applied
+Possible sepsis/medical instability,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+acute liver failure,999,Unknown,General and Minor,silver,
+Cirrhosis with AKI,999,Unknown,General and Minor,silver,
+Pneumothorax,999,Unknown,General and Minor,silver,
+pelvic abscess,999,Unknown,General and Minor,rule,PELVIC_ABSCESS_UNKNOWN
+hemorshape,999,Unknown,General and Minor,silver,
+FIB,999,Unknown,General and Minor,silver,
+lemathosis,999,Unknown,General and Minor,silver,
+unstable FX,999,Unknown,General and Minor,silver,
+pneumotrax,999,Unknown,General and Minor,silver,
+rupture aortic,999,Unknown,General and Minor,rule,AORTIC_RUPTURE_UNKNOWN
+Tubo-ovarian abscess,999,Unknown,General and Minor,rule,PELVIC_ABSCESS_UNKNOWN
+SEPSIS,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+Heart block,999,Unknown,General and Minor,silver,
+dysorthia,999,Unknown,General and Minor,silver,
+femural,999,Unknown,General and Minor,silver,
+dissection aorta type B,999,Unknown,General and Minor,silver,
+<PERSON> pain + hypotension,999,Unknown,General and Minor,silver,
+acute kidney injury,999,Unknown,General and Minor,rule,ACUTE_RENAL_FAILURE_UNKNOWN
+ruptured AAA,999,Unknown,General and Minor,rule,AORTIC_RUPTURE_UNKNOWN
+acute,999,Unknown,General and Minor,silver,
+SUT,999,Unknown,General and Minor,silver,
+Intracranial Hemmorhage,999,Unknown,General and Minor,silver,
+pneumothorax,999,Unknown,General and Minor,silver,
+Encephalitis,999,Unknown,General and Minor,silver,
+intracranial hemorrhage,999,Unknown,General and Minor,silver,
+abcess,999,Unknown,General and Minor,silver,
+"<PERSON> cancer,",999,Unknown,General and Minor,silver,
+CHF,999,Unknown,General and Minor,rule,CHF_UNKNOWN
+paliative,999,Unknown,General and Minor,silver,
+Bradycardia,999,Unknown,General and Minor,silver,
+<PERSON> Pain/Trauma to <PERSON>,999,Unknown,General and Minor,silver,
+<PERSON> / middle cerebral artery stenosis,999,Unknown,General and Minor,silver,
+heart failure,999,Unknown,General and Minor,silver,
+possible sepsis,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+L sided,999,Unknown,General and Minor,silver,
+Pelvic Abcess,999,Unknown,General and Minor,rule,PELVIC_ABSCESS_UNKNOWN
+"SOB, COPD exacerbation, CHF",999,Unknown,General and Minor,rule,CHF_UNKNOWN
+Hemorhaging,999,Unknown,General and Minor,silver,
+NSFMEI,999,Unknown,General and Minor,silver,
+stabilization,999,Unknown,General and Minor,silver,
+R <PERSON>,999,Unknown,General and Minor,silver,
+"Radiology, lab, physician",999,Unknown,General and Minor,silver,
+Liver malignancy heptic abcess,999,Unknown,General and Minor,silver,
+Syptomatic Bradycardia w/ AV dissociation,999,Unknown,General and Minor,silver,
+acute renal failure,999,Unknown,General and Minor,rule,ACUTE_RENAL_FAILURE_UNKNOWN
+CHF / lactic acidosis,999,Unknown,General and Minor,rule,CHF_UNKNOWN
+"ESLD, Sepsis",999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+Complete HB,999,Unknown,General and Minor,silver,
+Hypotension/tachycardia,999,Unknown,General and Minor,silver,
+shock,999,Unknown,General and Minor,silver,
+hypotension,999,Unknown,General and Minor,silver,
+acute sepsis,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+L lupfx,999,Unknown,General and Minor,silver,
+Cardiogeric / septic shock,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+acute heart failure,999,Unknown,General and Minor,silver,
+Probable CHF,999,Unknown,General and Minor,rule,CHF_UNKNOWN
+EGD,999,Unknown,General and Minor,silver,
+<LOCATION> weak,999,Unknown,General and Minor,rule,SCRUBBED_LOCATION_WEAK_UNKNOWN
+lupus pericarditis,999,Unknown,General and Minor,silver,
+CMF,999,Unknown,General and Minor,silver,
+"pain, hypotension",999,Unknown,General and Minor,silver,
+"PE, heparin infusion",999,Unknown,General and Minor,silver,
+"Bleeding, <NRP>",999,Unknown,General and Minor,silver,
+compartment syndrome,999,Unknown,General and Minor,silver,
+AC cholengestitis,999,Unknown,General and Minor,silver,
+Undifferentiated shock,999,Unknown,General and Minor,silver,
+"sepsis, AMS",999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+subarachnoid hemorage,999,Unknown,General and Minor,silver,
+"UTI, sepsis, CVA",999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+MC,999,Unknown,General and Minor,silver,
+<NRP> like Activity,999,Unknown,General and Minor,silver,
+"Snowmobile trauma, mandibular fracture",999,Unknown,General and Minor,silver,
+"Sepsis unknown, heart failure",999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+complex fibl fb fx,999,Unknown,General and Minor,silver,
+"COPD, ulcer",999,Unknown,General and Minor,silver,
+severe sepsis,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+NIV,999,Unknown,General and Minor,silver,
+CKDV,999,Unknown,General and Minor,silver,
+R Leg,999,Unknown,General and Minor,silver,
+pyelonephritis with suspected sepsis,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+CHF exacerbation,999,Unknown,General and Minor,rule,CHF_UNKNOWN
+"Sepsis, pneumoni, hypoxia",999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+heart block,999,Unknown,General and Minor,silver,
+"septic shock, ams",999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+"Abdominal pain, pyelonephritis, sepsis",999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+Res. <PERSON>,999,Unknown,General and Minor,silver,
+"CHF exacerbation, renal failure, COVID",999,Unknown,General and Minor,rule,CHF_UNKNOWN
+fracture,999,Unknown,General and Minor,silver,
+Alcoholic Ketoacidosis,999,Unknown,General and Minor,silver,
+cancer,999,Unknown,General and Minor,silver,
+WRC FAC,999,Unknown,General and Minor,silver,
+pirulinate dislocation,999,Unknown,General and Minor,silver,
+sepsis with COVID,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+End Stage liver,999,Unknown,General and Minor,silver,
+Liver failure,999,Unknown,General and Minor,silver,
+liver failure,999,Unknown,General and Minor,silver,
+pneumomediastinum,999,Unknown,General and Minor,silver,
+pnuemothrax,999,Unknown,General and Minor,silver,
+possible meningits/sepsis,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+Meningitis,999,Unknown,General and Minor,silver,
+"SIUP <DATE_TIME>, Active herpes lesion",999,Unknown,General and Minor,rule,SIUP_HERPES_UNKNOWN
+hepatic,999,Unknown,General and Minor,silver,
+sepsis pna respiratory,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+MIS-C suspected,999,Unknown,General and Minor,silver,
+"Hypotension, CA, abd pain",999,Unknown,General and Minor,silver,
+<PERSON> pain,999,Unknown,General and Minor,silver,
+U,999,Unknown,General and Minor,silver,
+Sepsis,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+sepsis,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+<PERSON>,999,Unknown,General and Minor,silver,
+PNA w sepsis,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+septic shock,999,Unknown,General and Minor,rule,SEPSIS_UNKNOWN
+<NRP>,999,Unknown,General and Minor,silver,
+<LOCATION>,999,Unknown,General and Minor,silver,
