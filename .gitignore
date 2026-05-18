@@ -12,6 +12,8 @@ build/
 data/raw/
 data/hand_labels/*_phi*.csv
 data/hand_labels/medevac_labelled.csv
+data/hand_labels/training_cc.csv   # may contain un-deidentified text — review before committing
+data/results/*_phi*.csv            # any result file containing PHI columns
 
 # Model weights
 models/

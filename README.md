@@ -64,6 +64,32 @@ medevac_db/data/final/medevac/
 | `data/abbreviations/medevac_abbreviations.csv` | Alaska-specific medical abbreviations |
 | `src/cc_labeler/cedis_codes.py` | Complete CEDIS V2.0 code lookup (180+ codes) |
 
+## PHI laptop setup
+
+This project syncs via GitHub. **No PHI ever goes through git.**
+PHI data is read directly from medevac_db on the same machine.
+
+On the PHI laptop (Windows), after `git pull`:
+
+```powershell
+# 1. One-time setup
+copy local_paths.cfg.template local_paths.cfg
+# Edit local_paths.cfg — set medevac_db to your Windows path:
+#   medevac_db = C:/Users/brian.rice/Python Projects/medevac_db
+
+# 2. Copy .env.template → .env and add API keys (for LLM panel only)
+copy .env.template .env
+
+# 3. Install dependencies
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+Scripts read PHI directly from medevac_db via `local_paths.cfg` —
+nothing PHI is ever copied into this project folder or committed to git.
+Results in `data/results/` contain only aggregated stats, no PHI.
+
 ## PHI policy
 
 - `data/raw/` is gitignored — PHI files live here only on the PHI laptop
