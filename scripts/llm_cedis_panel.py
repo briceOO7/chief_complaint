@@ -2,47 +2,59 @@
 """
 Multi-model CEDIS panel classifier — production-scale version.
 
-Three models classify each chief complaint in parallel, then Claude
-adjudicates every non-unanimous row. If Claude hits a content filter,
-Gemini takes over as fallback arbiter for that row.
+Two cheap models classify each chief complaint in parallel; a stronger
+adjudicator resolves every non-unanimous row. All three run against Stanford
+AI Hub (Azure AI Foundry + AWS Bedrock), using the shared model registry in
+llm_cedis_second_labeller.py.
 
-Panel   : gpt-4o-mini · llama-4-scout · gemini-2.0-flash  (run in parallel)
-Arbiter : claude-3-5-sonnet  (fallback: gemini-2.0-flash)
+If the arbiter's pick agrees with neither panel model (i.e. it overruled
+both rather than just breaking a tie between them), the row's `final_code`
+is left blank and `needs_hand_review` is set to True instead of trusting the
+arbiter outright — see `needs_hand_review.csv` in the run's output dir.
+
+Panel    : gpt-4-1-mini (Azure AI Foundry) + claude-haiku-4-5 (AWS Bedrock)
+Arbiter  : claude-opus-4-6 (AWS Bedrock) — only invoked on disagreement
+
+See llm_cedis_second_labeller.py's MODEL_CONFIGS for the full model registry,
+including a documented list of currently-broken Bedrock models to avoid.
+
+Supports both medevac and commercial cohorts via --cohort, which resolves
+--raw/--col defaults from local_paths.cfg (see local_paths.cfg.template).
 
 Designed for runs of 100 → 9,000+ rows with:
   - Abbreviation pre-expansion (once, before any API calls)
   - 1,000-row chunked output (recoverable if interrupted)
   - Resume support (skips chunks whose output file already exists)
   - Per-run metadata/timing JSON
+  - A minimal {cohort}_labelled.csv export matching medevac_db's expected
+    schema (row, text, text_original, cedis_code, cedis_complaint,
+    needs_hand_review), alongside the full diagnostic CSV for QA
 
 Usage:
     # Quick test (20 rows, single chunk):
-    python scripts/llm_cedis_panel.py --rows 20
+    python scripts/llm_cedis_panel.py --rows 20 --cohort medevac
 
     # Full dataset:
-    python scripts/llm_cedis_panel.py --all
+    python scripts/llm_cedis_panel.py --all --cohort commercial
 
     # Resume interrupted run:
-    python scripts/llm_cedis_panel.py --all --resume --out-dir output/panel_benchmark/panel_20260305_...
+    python scripts/llm_cedis_panel.py --all --cohort medevac --resume --out-dir output/panel_medevac_20260305_.../
 
-    # Different dataset / abbreviation file:
-    python scripts/llm_cedis_panel.py --all --raw data/... --abbrev data/abbreviations/site_b.csv
+    # Different/explicit dataset or abbreviation file:
+    python scripts/llm_cedis_panel.py --all --raw data/... --col ValueTXT --abbrev data/abbreviations/site_b.csv
 """
 
 import argparse
 import json
 import os
-import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
-import httpx
 import pandas as pd
 import requests
-from openai import AzureOpenAI, OpenAI
 
 try:
     from dotenv import load_dotenv
@@ -53,7 +65,9 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent))
 from llm_cedis_second_labeller import (
     load_cedis, build_client, extract_json,
-    MODEL_CONFIGS, GeminiClient,
+    MODEL_CONFIGS, ContentFilterError,
+    CODING_RULES,
+    _LOCAL,
 )
 from abbreviations import load_abbreviations, expand_series
 
@@ -65,250 +79,40 @@ from abbreviations import load_abbreviations, expand_series
 APIM_KEY_ENV    = "APIM_API_KEY"
 APIM_BASE       = "https://apim.stanfordhealthcare.org"
 AIHUB_KEY_ENV   = "PRIMARY_API_KEY"
-AIHUB_BASE      = "https://aihubapi.stanfordhealthcare.org/azure-openai"
-AIHUB_VERSION   = "2025-04-01-preview"
-RAW_CSV_DEFAULT = "data/training_cc/chief_complaints_medevac_all_corpus_deid.csv"
-TEXT_COL        = "ValueTXT"
+
+# ── Cohort support (medevac vs. commercial) ──────────────────────────────────
+# Both cohorts are exported by medevac_db as de-identified NER corpora with an
+# identical schema (ValueTXT text column) — only the file path differs.
+# See docs/PHI_MACHINE_SETUP.md and medevac_db's
+# docs/COMMERCIAL_CEDIS_LABELING_HANDOFF.md.
+COHORTS         = ("medevac", "commercial")
+COHORT_RAW_KEYS = {"medevac": "raw_cc_medevac", "commercial": "raw_cc_commercial"}
+COHORT_RAW_DEFAULTS = {
+    "medevac":    "data/raw/chief_complaints_phi.csv",
+    "commercial": "data/raw/chief_complaints_phi_commercial.csv",
+}
+TEXT_COL        = _LOCAL.get("cc_column", "ValueTXT")
 ABBREV_DEFAULT  = "data/abbreviations/medevac_abbreviations.csv"
 CHUNK_SIZE      = 1000
 RATE_LIMIT_SLEEP = 0.3
 ERROR_SLEEP      = 1.0
-ARBITER_MODEL               = "gemini-2.0-flash"
-ARBITER_FALLBACK_MODEL      = "claude-3-5-sonnet"  # used when Gemini returns null/invalid
-ARBITER_BATCH_SIZE          = 10                   # disputes per arbiter API call
-CONFIDENCE_ABSTAIN_THRESHOLD = 1                   # confidence <= this → abstain from vote
 
+# ── Model roster — 2 cheap panel models + 1 adjudicator on disagreement only.
+# See llm_cedis_second_labeller.py's MODEL_CONFIGS for backend details and a
+# documented list of currently-broken Bedrock models (opus-4-8/opus-5/sonnet-5)
+# to avoid using as the arbiter.
+PANEL_MODELS    = ["gpt-4-1-mini", "claude-haiku-4-5"]
+ARBITER_MODEL   = "claude-opus-4-6"
+ARBITER_BATCH_SIZE          = 10   # disputes per arbiter API call
+CONFIDENCE_ABSTAIN_THRESHOLD = 1   # confidence <= this → abstain from vote
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Panel model configs
-# ─────────────────────────────────────────────────────────────────────────────
-
-PANEL_MODEL_CONFIGS: dict[str, dict] = {
-    "gpt-4o-mini": {
-        "backend":              "securegpt",
-        "api_name":             "gpt-4o-mini",
-        "url_base":             f"{APIM_BASE}/openai",
-        "api_version":          "2024-12-01-preview",
-        "token_param":          "max_completion_tokens",
-        "temperature":          0,
-        "tokens_per_complaint": 150,
-        "tokens_floor":         0,
-        "batch_size":           10,
-        "json_mode":            True,
-    },
-    "llama-4-scout": {
-        "backend":              "openai_compat",
-        "api_name":             "Llama-4-Scout-17B-16E-Instruct",
-        "url":                  f"{APIM_BASE}/llama4-scout/v1",
-        "token_param":          "max_tokens",
-        "temperature":          0,
-        "tokens_per_complaint": 200,
-        "tokens_floor":         0,
-        "batch_size":           10,
-        "json_mode":            False,
-    },
-    "claude-3-5-sonnet": {
-        "backend":              "claude_apim",
-        "url":                  f"{APIM_BASE}/Claude35Sonnetv2/awssig4fa",
-        "model_id":             "arn:aws:bedrock:us-west-2:679683451337:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-        "temperature":          0.0,
-        "tokens_per_complaint": 150,
-        "tokens_floor":         0,
-        "batch_size":           10,
-        "json_mode":            False,
-    },
-    "gemini-2.0-flash": {
-        "backend":              "gemini",
-        "api_name":             "gemini-2.0-flash",
-        "url":                  f"{APIM_BASE}/gcp-gem20flash-fa/apim-gcp-gem20flash-fa",
-        "token_param":          "maxOutputTokens",
-        "temperature":          0,
-        "tokens_per_complaint": 150,
-        "tokens_floor":         0,
-        "batch_size":           20,
-        "json_mode":            True,
-    },
-}
-
-PANEL_MODELS = ["gpt-4o-mini", "llama-4-scout", "claude-3-5-sonnet"]
-
-# ── Trial panel using new AI Hub endpoint (PRIMARY_API_KEY) ──────────────────
-AIHUB_MODEL_CONFIGS: dict[str, dict] = {
-    "gpt-5-nano": {
-        "backend":              "aihub",
-        "api_name":             "gpt-5-nano",
-        "token_param":          "max_completion_tokens",
-        "temperature":          None,  # gpt-5/o-series: don't set temperature
-        # Reasoning model — must allocate tokens for internal chain-of-thought
-        # ~700 reasoning + ~150 output per complaint; batch of 6 ≈ 5100 → within 5000 TPM
-        "tokens_per_complaint": 850,
-        "tokens_floor":         0,
-        "batch_size":           5,
-        "json_mode":            False,
-    },
-    "gpt-4-1-nano": {
-        "backend":              "aihub",
-        "api_name":             "gpt-4-1-nano",
-        "token_param":          "max_completion_tokens",
-        "temperature":          0,
-        "tokens_per_complaint": 150,
-        "tokens_floor":         0,
-        "batch_size":           10,
-        "json_mode":            True,
-    },
-    "grok-3-mini": {
-        "backend":              "aihub",
-        "api_name":             "grok-3-mini",
-        "token_param":          "max_tokens",  # grok uses max_tokens not max_completion_tokens
-        "temperature":          0,
-        # 200 TPM sandbox limit — small batches + extra sleep
-        "tokens_per_complaint": 120,
-        "tokens_floor":         0,
-        "batch_size":           3,
-        "json_mode":            False,
-        "batch_sleep":          8.0,  # rate-limit buffer for 200 TPM
-    },
-    "o4-mini": {
-        "backend":              "aihub",
-        "api_name":             "o4-mini",
-        "token_param":          "max_completion_tokens",
-        "temperature":          1,   # o-series requires temperature=1
-        "tokens_per_complaint": 200,
-        "tokens_floor":         0,
-        "batch_size":           10,
-        "json_mode":            False,
-    },
-}
-TRIAL_PANEL_MODELS   = ["gpt-5-nano", "gpt-4-1-nano"]   # grok-3-mini excluded (200 TPM too restrictive with reasoning overhead)
-TRIAL_ARBITER_MODEL  = "o4-mini"
-
-
-def _get_model_cfg(model: str) -> dict:
-    """Return config dict from AIHUB_MODEL_CONFIGS or PANEL_MODEL_CONFIGS."""
-    if model in AIHUB_MODEL_CONFIGS:
-        return AIHUB_MODEL_CONFIGS[model]
-    return PANEL_MODEL_CONFIGS[model]
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Claude APIM client
-# ─────────────────────────────────────────────────────────────────────────────
-
-class ClaudeApimClient:
-    def __init__(self, url: str, model_id: str, key: str) -> None:
-        self.url      = url
-        self.model_id = model_id
-        self.key      = key
-
-    def complete(self, prompt_text: str, max_tokens: int = 500,
-                 temperature: float = 0.0) -> str:
-        r = requests.post(
-            self.url,
-            headers={"Ocp-Apim-Subscription-Key": self.key,
-                     "Content-Type": "application/json"},
-            json={"model_id": self.model_id, "prompt_text": prompt_text,
-                  "temperature": temperature, "top_p": 0.25,
-                  "max_tokens": max_tokens},
-            timeout=60,
-        )
-        r.raise_for_status()
-        return r.json().get("content", [{}])[0].get("text", "")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# AI Hub direct-request client
-# ─────────────────────────────────────────────────────────────────────────────
-
-class _AiHubMessage:
-    def __init__(self, content: str) -> None:
-        self.content = content
-
-class _AiHubChoice:
-    def __init__(self, data: dict) -> None:
-        self.message       = _AiHubMessage(data.get("message", {}).get("content", ""))
-        self.finish_reason = data.get("finish_reason", "")
-
-class _AiHubResponse:
-    def __init__(self, data: dict) -> None:
-        self.choices = [_AiHubChoice(c) for c in data.get("choices", [{}])]
-
-class _AiHubCompletions:
-    def __init__(self, key: str) -> None:
-        self._key = key
-
-    def create(self, model: str, messages: list, **kwargs) -> _AiHubResponse:
-        url = (f"{AIHUB_BASE}/deployments/{model}/chat/completions"
-               f"?api-version={AIHUB_VERSION}")
-        body: dict = {"model": model, "messages": messages}
-        for k in ("max_completion_tokens", "max_tokens",
-                  "temperature", "response_format"):
-            if k in kwargs and kwargs[k] is not None:
-                body[k] = kwargs[k]
-        r = requests.post(
-            url,
-            headers={"api-key": self._key, "Content-Type": "application/json"},
-            json=body,
-            timeout=120,
-        )
-        r.raise_for_status()
-        return _AiHubResponse(r.json())
-
-class _AiHubChat:
-    def __init__(self, key: str) -> None:
-        self.completions = _AiHubCompletions(key)
-
-class _AiHubClient:
-    """Drop-in replacement for AzureOpenAI for the AI Hub endpoint."""
-    def __init__(self, key: str) -> None:
-        self.chat = _AiHubChat(key)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Thread-safe client builder (no shared-state mutation)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def build_panel_client(model: str):
-    # Check AI Hub configs first, then fall back to APIM configs
-    if model in AIHUB_MODEL_CONFIGS:
-        key = os.environ.get(AIHUB_KEY_ENV, "")
-        if not key:
-            raise EnvironmentError(f"{AIHUB_KEY_ENV} not set")
-        return _AiHubClient(key)  # single shared client; model determined per-call
-
-    cfg = PANEL_MODEL_CONFIGS[model]
-    key = os.environ.get(APIM_KEY_ENV, "")
-    if not key:
-        raise EnvironmentError(f"{APIM_KEY_ENV} not set")
-
-    if cfg["backend"] == "claude_apim":
-        return ClaudeApimClient(cfg["url"], cfg["model_id"], key)
-
-    if cfg["backend"] == "securegpt":
-        base = cfg.get("url_base", f"{APIM_BASE}/openai-eastus2").rstrip("/")
-        url  = f"{base}/deployments/{cfg['api_name']}/chat/completions?api-version={cfg['api_version']}"
-        return AzureOpenAI(
-            api_version       = cfg["api_version"],
-            azure_endpoint    = url,
-            azure_deployment  = cfg["api_name"],
-            default_headers   = {"Ocp-Apim-Subscription-Key": key,
-                                  "Content-Type": "application/json"},
-            azure_ad_token    = key,
-            timeout           = httpx.Timeout(connect=30.0, read=300.0,
-                                               write=30.0, pool=30.0),
-        )
-
-    if cfg["backend"] == "openai_compat":
-        return OpenAI(
-            base_url        = cfg["url"].rstrip("/"),
-            api_key         = "placeholder",
-            default_headers = {"Ocp-Apim-Subscription-Key": key},
-        )
-
-    if cfg["backend"] == "gemini":
-        # Delegate to existing factory which handles GeminiClient construction
-        return build_client(model)
-
-    raise ValueError(f"Unknown backend for panel model {model}: {cfg['backend']}")
+# NOTE: all panel/arbiter models are defined in llm_cedis_second_labeller.py's
+# shared MODEL_CONFIGS registry (imported above) and built via build_client().
+# The legacy PANEL_MODEL_CONFIGS / AIHUB_MODEL_CONFIGS duplicate dicts, the
+# gpt-5-nano/gpt-4-1-nano/o4-mini "trial-aihub" panel, and the ClaudeApimClient
+# + duplicate _AiHub* client classes have been retired — build_client() covers
+# every backend (securegpt/openai_compat/gemini/aihub/bedrock) that MODEL_CONFIGS
+# declares.
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -320,14 +124,12 @@ def _classification_system(cedis_code_list: str) -> str:
         "You are a clinical informatics expert classifying emergency department "
         "chief complaints using the Canadian Emergency Department Information "
         "System (CEDIS).\n\n"
-        "Rules:\n"
-        "- Choose ONLY from the valid CEDIS codes listed below.\n"
-        "- Prefer the most specific code that fits the complaint.\n"
-        "- For each result also provide a confidence score (integer 1–3):\n"
+        f"{CODING_RULES}\n\n"
+        "For each result also provide a confidence score (integer 1–3):\n"
         "    1 = low  : complaint is vague, ambiguous, or uninterpretable\n"
         "    2 = medium: reasonable fit but some ambiguity remains\n"
         "    3 = high : clear, unambiguous match to one code\n"
-        "- Return ONLY a JSON object with key \"results\" containing an array, "
+        "Return ONLY a JSON object with key \"results\" containing an array, "
         "each item: cedis_code (integer), cedis_complaint (string), "
         "confidence (integer 1-3).\n\n"
         f"Valid CEDIS codes:\n{cedis_code_list}"
@@ -350,9 +152,8 @@ def _arbiter_system(cedis_code_list: str) -> str:
     return (
         "You are the final arbitrator for CEDIS classification disputes.\n"
         "Multiple AI reviewers disagreed on the code for each complaint.\n\n"
-        "CRITICAL: Return ONLY codes from the valid CEDIS list below.\n"
-        "Prefer the most specific code. Avoid 866 (Minor NOS) if a better "
-        "code exists. Avoid 999 (Unknown) unless truly uninterpretable.\n"
+        f"{CODING_RULES}\n\n"
+        "Avoid 999 (Unknown) unless the complaint is truly uninterpretable.\n"
         "Return JSON: {\"results\": [{cedis_code: int, cedis_complaint: str, "
         "rationale: str ≤12 words}, ...]}\n\n"
         f"Valid CEDIS codes:\n{cedis_code_list}"
@@ -388,16 +189,11 @@ def _max_tokens(cfg: dict, n: int) -> int:
 
 def _call_model(client, model: str, texts: list[str], system: str) -> list[dict]:
     """Call API for one batch; returns parsed results list."""
-    cfg  = _get_model_cfg(model)
+    cfg  = MODEL_CONFIGS[model]
     user = _classification_user(texts)
     mtok = _max_tokens(cfg, len(texts))
 
-    if cfg["backend"] == "claude_apim":
-        raw = client.complete(_claude_combined(system, user),
-                              max_tokens=max(mtok, 500),
-                              temperature=cfg["temperature"])
-
-    elif cfg["backend"] == "gemini":
+    if cfg["backend"] == "gemini":
         raw = client.complete(
             system_prompt=system,
             user_message=user,
@@ -425,7 +221,7 @@ def _call_model(client, model: str, texts: list[str], system: str) -> list[dict]
         r.raise_for_status()
         raw = r.json()["choices"][0]["message"]["content"] or ""
 
-    else:   # securegpt / aihub — both use AzureOpenAI client interface
+    else:   # securegpt / aihub / bedrock — all use the .chat.completions.create() interface
         kwargs: dict = {
             "model":    cfg["api_name"],
             "messages": [{"role": "system", "content": system},
@@ -436,11 +232,16 @@ def _call_model(client, model: str, texts: list[str], system: str) -> list[dict]
             kwargs["temperature"] = cfg["temperature"]
         if cfg["json_mode"]:
             kwargs["response_format"] = {"type": "json_object"}
-        resp = client.chat.completions.create(**kwargs)
-        raw  = resp.choices[0].message.content or ""
+        resp   = client.chat.completions.create(**kwargs)
+        choice = resp.choices[0]
+        raw    = choice.message.content or ""
         if not raw.strip():
+            if choice.finish_reason == "content_filter":
+                raise ContentFilterError(
+                    f"Response was filtered by moderation for model '{model}'."
+                )
             raise ValueError(
-                f"Empty response (finish_reason={resp.choices[0].finish_reason})"
+                f"Empty response (finish_reason={choice.finish_reason})"
             )
 
     parsed  = extract_json(raw)
@@ -473,8 +274,8 @@ def label_with_model(model: str, texts: list[str],
     Returns (model_name, list_of_codes, list_of_confidences, elapsed_seconds).
     Runs entirely inside a thread — creates its own client.
     """
-    client     = build_panel_client(model)
-    cfg        = _get_model_cfg(model)
+    client     = build_client(model)
+    cfg        = MODEL_CONFIGS[model]
     bs         = cfg["batch_size"]
     batch_slp  = cfg.get("batch_sleep", RATE_LIMIT_SLEEP)
     codes:  list[int | None] = []
@@ -490,6 +291,17 @@ def label_with_model(model: str, texts: list[str],
                     c, conf = _parse_result(r, valid_codes)
                     codes.append(c)
                     confs.append(conf)
+                break
+            except ContentFilterError as exc:
+                # Not transient — retrying identical content against the same
+                # model/policy will fail identically. Abstain immediately so
+                # the row falls through to the arbiter (a different backend/
+                # moderation stack) instead of wasting retries.
+                print(f"\n    [{model}] content filter blocked batch of "
+                      f"{len(batch)} row(s): {str(exc)[:100]} — abstaining, "
+                      f"no retry", end=" ", flush=True)
+                codes.extend([None] * len(batch))
+                confs.extend([CONFIDENCE_ABSTAIN_THRESHOLD] * len(batch))
                 break
             except Exception as exc:
                 print(f"\n    [{model}] batch attempt {attempt+1}: "
@@ -508,6 +320,10 @@ def label_with_model(model: str, texts: list[str],
                         codes.append(c)
                         confs.append(conf)
                         break
+                    except ContentFilterError:
+                        codes.append(None)
+                        confs.append(CONFIDENCE_ABSTAIN_THRESHOLD)
+                        break
                     except Exception:
                         if ind_attempt == 1:
                             codes.append(None)
@@ -521,272 +337,146 @@ def label_with_model(model: str, texts: list[str],
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Arbiter (Claude primary, Gemini fallback on content filter)
+# Arbiter — claude-opus-4-6, only invoked on panel disagreement
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _is_content_filter(exc: Exception) -> bool:
-    """Detect Azure/APIM content filter errors."""
-    msg = str(exc).lower()
-    return ("content_filter" in msg or "content filter" in msg
-            or "responsibleaipolicyviolation" in msg
-            or ("400" in msg and "filtered" in msg))
-
-
-def _call_claude_arbiter(
-    client: ClaudeApimClient,
-    case: dict,
-    system: str,
-    cedis_code_list: str,
-    valid_codes: set[int],
-) -> tuple[int | None, str | None]:
-    """
-    Ask Claude to adjudicate a single dispute.
-    Returns (cedis_code, error_type) where error_type is None on success,
-    'content_filter' if filtered, or 'error' for other failures.
-    """
-    user   = _arbiter_user([case])
-    prompt = _claude_combined(system, user)
-    max_tok = max(
-        PANEL_MODEL_CONFIGS["claude-3-5-sonnet"]["tokens_floor"],
-        PANEL_MODEL_CONFIGS["claude-3-5-sonnet"]["tokens_per_complaint"],
-    )
-    try:
-        raw     = client.complete(prompt, max_tokens=max_tok, temperature=0.0)
-        parsed  = extract_json(raw)
-        results = parsed.get("results", [])
-        if results:
-            c = int(results[0].get("cedis_code"))
-            return (c if c in valid_codes else None), None
-        return None, "empty"
-    except Exception as exc:
-        if _is_content_filter(exc):
-            return None, "content_filter"
-        return None, "error"
-
-
-def _call_gemini_arbiter(
-    client,
-    case: dict,
-    system: str,
-    valid_codes: set[int],
-) -> int | None:
-    """Ask Gemini to adjudicate a single dispute (fallback)."""
-    cfg  = MODEL_CONFIGS[ARBITER_FALLBACK_MODEL]
-    user = _arbiter_user([case])
-    mtok = max(cfg["tokens_floor"], cfg["tokens_per_complaint"])
-    try:
-        raw     = client.complete(system_prompt=system, user_message=user,
-                                  max_output_tokens=mtok, temperature=0, json_mode=True)
-        parsed  = extract_json(raw)
-        results = parsed.get("results", [])
-        if results:
-            c = int(results[0].get("cedis_code"))
-            return c if c in valid_codes else None
-    except Exception:
-        pass
-    return None
-
-
-def _gemini_batch_arbiter(
+def _call_arbiter_batch(
     client,
     cases: list[dict],
     system: str,
-    valid_codes: set[int],
-) -> list[int | None]:
-    """
-    Ask Gemini to adjudicate a batch of disputes in one call.
-    Returns a list of codes (None for any that fail validation).
-    Falls back to per-row calls if the batch response is malformed.
-    """
+    panel_models: list[str],
+) -> list[dict]:
+    """Send one batch of disputes to ARBITER_MODEL; returns parsed results list."""
     cfg  = MODEL_CONFIGS[ARBITER_MODEL]
-    user = _arbiter_user(cases)
+    user = _arbiter_user(cases, panel_models)
     mtok = max(cfg["tokens_floor"], cfg["tokens_per_complaint"] * len(cases))
-    try:
-        raw    = client.complete(system_prompt=system, user_message=user,
-                                 max_output_tokens=mtok, temperature=0, json_mode=True)
-        parsed = extract_json(raw)
-        results = parsed.get("results", [])
-        if len(results) == len(cases):
-            codes = []
-            for r in results:
-                try:
-                    c = int(r.get("cedis_code"))
-                    codes.append(c if c in valid_codes else None)
-                except (TypeError, ValueError):
-                    codes.append(None)
-            return codes
-    except Exception:
-        pass
-    # Fallback: call one row at a time
-    return [_call_gemini_arbiter(client, c, system, valid_codes) for c in cases]
+    kwargs: dict = {
+        "model":    cfg["api_name"],
+        "messages": [{"role": "system", "content": system},
+                     {"role": "user",   "content": user}],
+        cfg["token_param"]: mtok,
+    }
+    if cfg["temperature"] is not None:
+        kwargs["temperature"] = cfg["temperature"]
+    if cfg["json_mode"]:
+        kwargs["response_format"] = {"type": "json_object"}
+
+    resp   = client.chat.completions.create(**kwargs)
+    choice = resp.choices[0]
+    raw    = choice.message.content or ""
+    if not raw.strip():
+        if choice.finish_reason == "content_filter":
+            raise ContentFilterError(
+                f"Arbiter response was filtered by moderation for model "
+                f"'{ARBITER_MODEL}'."
+            )
+        raise ValueError(f"Empty arbiter response (finish_reason={choice.finish_reason})")
+
+    parsed  = extract_json(raw)
+    results = parsed.get("results", [])
+    if len(results) != len(cases):
+        raise ValueError(f"Expected {len(cases)} results, got {len(results)}")
+    return results
+
+
+def _parse_arbiter_results(
+    results: list[dict], valid_codes: set[int]
+) -> list[tuple[int | None, str]]:
+    """
+    Extract (cedis_code, rationale) per result. The rationale is the only
+    audit trail available for disputed rows on real PHI data, where there's
+    no gold label to spot-check against — always keep it, even when the code
+    itself is invalid, so a human reviewer can see *why* the arbiter landed
+    (or failed to land) on a code.
+    """
+    parsed: list[tuple[int | None, str]] = []
+    for r in results:
+        rationale = str(r.get("rationale", "") or "")
+        try:
+            c = int(r.get("cedis_code"))
+            parsed.append((c if c in valid_codes else None, rationale))
+        except (TypeError, ValueError):
+            parsed.append((None, rationale))
+    return parsed
 
 
 def run_arbiter(
     dispute_rows: list[dict],
     cedis_code_list: str,
     valid_codes: set[int],
-) -> tuple[list[int | None], list[dict], float]:
+    panel_models: list[str] | None = None,
+) -> tuple[list[int | None], list[str], list[dict], float]:
     """
-    Arbitrate all disputed rows with Gemini in batches of ARBITER_BATCH_SIZE.
-    Rows that hit a content filter are routed to Claude fallback.
+    Arbitrate all disputed rows with ARBITER_MODEL in batches of
+    ARBITER_BATCH_SIZE. Falls back to per-row calls if a batch response is
+    malformed. No cross-vendor fallback model — the panel already spans two
+    backends/moderation stacks (Azure AI Foundry + AWS Bedrock) and the
+    arbiter itself runs on a third model, so a genuine content-filter block
+    here is recorded as a null rather than routed anywhere else.
 
     Returns:
         finals          — list of final codes (one per dispute_row)
-        fallback_events — list of dicts describing each content-filter fallback
+        rationales      — list of the arbiter's stated rationale per row
+                           (empty string if unavailable) — this is the only
+                           audit trail on real PHI data where there's no gold
+                           label to check disputed rows against
+        fallback_events — list of dicts describing each row the arbiter
+                           could not resolve (null result)
         elapsed         — total seconds
     """
     if not dispute_rows:
-        return [], [], 0.0
+        return [], [], [], 0.0
 
-    gemini_client   = build_panel_client(ARBITER_MODEL)
-    claude_client   = ClaudeApimClient(
-        PANEL_MODEL_CONFIGS["claude-3-5-sonnet"]["url"],
-        PANEL_MODEL_CONFIGS["claude-3-5-sonnet"]["model_id"],
-        os.environ.get(APIM_KEY_ENV, ""),
-    )
-    gemini_system   = _arbiter_system(cedis_code_list)
-    claude_system   = _claude_combined(_arbiter_system(cedis_code_list), "")
-
-    finals:          list[int | None] = []
-    fallback_events: list[dict]       = []
-    t0  = time.time()
-    n   = len(dispute_rows)
-    bs  = ARBITER_BATCH_SIZE
-
-    for batch_start in range(0, n, bs):
-        batch = dispute_rows[batch_start: batch_start + bs]
-        batch_codes = _gemini_batch_arbiter(gemini_client, batch, gemini_system, valid_codes)
-
-        for j, (case, code) in enumerate(zip(batch, batch_codes)):
-            global_i = batch_start + j
-            if code is None:
-                # Fallback: try Claude for this individual row
-                claude_code, err = _call_claude_arbiter(
-                    claude_client, case, claude_system, cedis_code_list, valid_codes
-                )
-                fallback_events.append({
-                    "dispute_index":  global_i,
-                    "text":           case["text"],
-                    "votes":          {m: str(v) for m, v in case["votes"].items()},
-                    "gemini_result":  "null/invalid",
-                    "fallback_model": ARBITER_FALLBACK_MODEL,
-                    "fallback_code":  claude_code,
-                })
-                print(f"\n    [arbiter] row {global_i+1} Gemini→null → "
-                      f"Claude fallback ({claude_code})", end=" ", flush=True)
-                finals.append(claude_code)
-            else:
-                finals.append(code)
-
-        done = min(batch_start + bs, n)
-        print(f"\r    [arbiter] {done}/{n} disputes arbitrated ...",
-              end=" ", flush=True)
-        time.sleep(RATE_LIMIT_SLEEP)
-
-    return finals, fallback_events, time.time() - t0
-
-
-def _aihub_batch_arbiter(
-    client,
-    cases: list[dict],
-    system: str,
-    valid_codes: set[int],
-    panel_models: list[str],
-) -> list[int | None]:
-    """Ask o4-mini (AI Hub) to adjudicate a batch of disputes in one call."""
-    cfg  = AIHUB_MODEL_CONFIGS[TRIAL_ARBITER_MODEL]
-    user = _arbiter_user(cases, panel_models)
-    mtok = max(cfg["tokens_floor"], cfg["tokens_per_complaint"] * len(cases))
-    try:
-        resp = client.chat.completions.create(
-            model                 = cfg["api_name"],
-            messages              = [{"role": "system", "content": system},
-                                     {"role": "user",   "content": user}],
-            max_completion_tokens = mtok,
-            temperature           = cfg["temperature"],
-        )
-        raw    = resp.choices[0].message.content or ""
-        parsed = extract_json(raw)
-        results = parsed.get("results", [])
-        if len(results) == len(cases):
-            codes = []
-            for r in results:
-                try:
-                    c = int(r.get("cedis_code"))
-                    codes.append(c if c in valid_codes else None)
-                except (TypeError, ValueError):
-                    codes.append(None)
-            return codes
-    except Exception as exc:
-        print(f"\n    [trial-arbiter] batch error: {exc}")
-    # Per-row fallback
-    results_fallback = []
-    for case in cases:
-        user_single = _arbiter_user([case], panel_models)
-        mtok_single = max(cfg["tokens_floor"], cfg["tokens_per_complaint"])
-        try:
-            resp = client.chat.completions.create(
-                model                 = cfg["api_name"],
-                messages              = [{"role": "system", "content": system},
-                                         {"role": "user",   "content": user_single}],
-                max_completion_tokens = mtok_single,
-                temperature           = cfg["temperature"],
-            )
-            raw    = resp.choices[0].message.content or ""
-            parsed = extract_json(raw)
-            rs     = parsed.get("results", [])
-            if rs:
-                c = int(rs[0].get("cedis_code"))
-                results_fallback.append(c if c in valid_codes else None)
-                continue
-        except Exception:
-            pass
-        results_fallback.append(None)
-    return results_fallback
-
-
-def run_trial_arbiter(
-    dispute_rows: list[dict],
-    cedis_code_list: str,
-    valid_codes: set[int],
-    panel_models: list[str],
-) -> tuple[list[int | None], list[dict], float]:
-    """
-    Arbitrate disputes with o4-mini (AI Hub) in batches.
-    No secondary fallback — null results are recorded.
-    """
-    if not dispute_rows:
-        return [], [], 0.0
-
-    client = build_panel_client(TRIAL_ARBITER_MODEL)
+    active = panel_models or PANEL_MODELS
+    client = build_client(ARBITER_MODEL)
     system = _arbiter_system(cedis_code_list)
 
     finals:          list[int | None] = []
+    rationales:      list[str]        = []
     fallback_events: list[dict]       = []
     t0 = time.time()
     n  = len(dispute_rows)
     bs = ARBITER_BATCH_SIZE
 
     for batch_start in range(0, n, bs):
-        batch       = dispute_rows[batch_start: batch_start + bs]
-        batch_codes = _aihub_batch_arbiter(client, batch, system, valid_codes, panel_models)
+        batch = dispute_rows[batch_start: batch_start + bs]
+        try:
+            results    = _call_arbiter_batch(client, batch, system, active)
+            batch_pairs = _parse_arbiter_results(results, valid_codes)
+        except ContentFilterError as exc:
+            print(f"\n    [arbiter] content filter blocked batch of "
+                  f"{len(batch)} row(s): {str(exc)[:100]}", end=" ", flush=True)
+            batch_pairs = [(None, "")] * len(batch)
+        except Exception as exc:
+            print(f"\n    [arbiter] batch error: {type(exc).__name__}: "
+                  f"{str(exc)[:80]} — falling back to per-row", end=" ", flush=True)
+            batch_pairs = []
+            for case in batch:
+                try:
+                    results = _call_arbiter_batch(client, [case], system, active)
+                    batch_pairs.extend(_parse_arbiter_results(results, valid_codes))
+                except Exception:
+                    batch_pairs.append((None, ""))
 
-        for j, (case, code) in enumerate(zip(batch, batch_codes)):
+        for j, (code, rationale) in enumerate(batch_pairs):
+            global_i = batch_start + j
             if code is None:
                 fallback_events.append({
-                    "dispute_index": batch_start + j,
-                    "text":  case["text"],
-                    "votes": {m: str(v) for m, v in case["votes"].items()},
-                    "o4mini_result": "null/invalid",
+                    "dispute_index": global_i,
+                    "text":  dispute_rows[global_i]["text"],
+                    "votes": {m: str(v) for m, v in dispute_rows[global_i]["votes"].items()},
+                    "arbiter_result": "null/invalid",
+                    "arbiter_rationale": rationale,
                 })
             finals.append(code)
+            rationales.append(rationale)
 
         done = min(batch_start + bs, n)
-        print(f"\r    [trial-arbiter] {done}/{n} disputes arbitrated ...",
+        print(f"\r    [arbiter] {done}/{n} disputes arbitrated ...",
               end=" ", flush=True)
         time.sleep(RATE_LIMIT_SLEEP)
 
-    return finals, fallback_events, time.time() - t0
+    return finals, rationales, fallback_events, time.time() - t0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -805,7 +495,8 @@ def process_chunk(
     """
     Run the full panel + arbiter pipeline on one chunk.
     panel_models: list of model names to use (defaults to PANEL_MODELS)
-    arbiter_fn: callable(dispute_rows, cedis_code_list, valid_codes) -> (finals, fallbacks, elapsed)
+    arbiter_fn: callable(dispute_rows, cedis_code_list, valid_codes, panel_models)
+                -> (finals, rationales, fallbacks, elapsed)
     Returns (result_df, timing_dict, fallback_events).
     """
     if panel_models is None:
@@ -876,45 +567,69 @@ def process_chunk(
         for i in dispute_idx
     ]
 
-    df["arbiter_code"]    = pd.NA
-    df["arbiter_model"]   = pd.NA
+    df["arbiter_code"]      = pd.NA
+    df["arbiter_model"]     = pd.NA
+    # Audit trail for disputed rows — the only thing to check adjudication
+    # quality against on real PHI data where there's no gold label available.
+    df["arbiter_rationale"] = pd.NA
+    # True when the arbiter picked a code that neither panel model voted for —
+    # i.e. it overruled both cheap models rather than just breaking a tie
+    # between them. Don't trust the arbiter blindly in that case; flag it for
+    # a human to look at instead of silently taking its word for it.
+    df["needs_hand_review"] = False
     arbiter_time = 0.0
     all_fallback_events: list[dict] = []
+    overrode_both_events: list[dict] = []
 
     if dispute_rows:
         print(f"\n    [arbiter] {len(dispute_rows)} disputes ...",
               end=" ", flush=True)
-        finals, fallback_events, arbiter_time = arbiter_fn(
-            dispute_rows, cedis_code_list, valid_codes
+        finals, rationales, fallback_events, arbiter_time = arbiter_fn(
+            dispute_rows, cedis_code_list, valid_codes, panel_models
         )
         all_fallback_events = fallback_events
-        fallback_dispute_indices = {e["dispute_index"] for e in fallback_events}
 
-        # Determine which arbiter label to record
-        # For default arbiter: fallbacks went to claude; for trial: no fallback
-        is_trial = (arbiter_fn is not run_arbiter)
-        primary_label  = TRIAL_ARBITER_MODEL if is_trial else ARBITER_MODEL
-        fallback_label = TRIAL_ARBITER_MODEL if is_trial else ARBITER_FALLBACK_MODEL
+        for idx, code, rationale in zip(dispute_idx, finals, rationales):
+            df.at[idx, "arbiter_code"]      = code
+            df.at[idx, "arbiter_model"]     = ARBITER_MODEL
+            df.at[idx, "arbiter_rationale"] = rationale
 
-        for local_i, (idx, code) in enumerate(zip(dispute_idx, finals)):
-            df.at[idx, "arbiter_code"]  = code
-            df.at[idx, "arbiter_model"] = (
-                fallback_label
-                if local_i in fallback_dispute_indices
-                else primary_label
-            )
+            panel_votes    = {m: df.loc[idx, m] for m in panel_models}
+            non_null_votes = {v for v in panel_votes.values() if pd.notna(v)}
+            overrode_both  = code is not None and code not in non_null_votes
+            if overrode_both:
+                df.at[idx, "needs_hand_review"] = True
+                overrode_both_events.append({
+                    "row":            df.loc[idx, "row"],
+                    "text":           df.loc[idx, "text"],
+                    "votes":          {m: str(v) for m, v in panel_votes.items()},
+                    "arbiter_code":   code,
+                    "arbiter_rationale": rationale,
+                })
 
         n_null = len(fallback_events)
         if n_null:
-            print(f"\n    [arbiter] null/fallback events: {n_null}",
+            print(f"\n    [arbiter] null results: {n_null}",
                   end=" ", flush=True)
+        n_overrode = len(overrode_both_events)
+        if n_overrode:
+            print(f"\n    [arbiter] overruled both panel models: {n_overrode} "
+                  f"(flagged needs_hand_review)", end=" ", flush=True)
 
     df["arbiter_code"] = df["arbiter_code"].astype("Int64")
-    model_times[primary_label if dispute_rows else ARBITER_MODEL] = arbiter_time
+    model_times[ARBITER_MODEL] = arbiter_time
 
     # ── Step 4: Final code + description ─────────────────────────────────────
+    # When the arbiter overruled both panel models, don't take its word as
+    # final — leave final_code blank (pending) so it's obvious downstream
+    # that a human needs to resolve it. `needs_hand_review` marks the row and
+    # `arbiter_code`/`arbiter_rationale` still record what the arbiter guessed.
     df["final_code"] = df.apply(
-        lambda r: r["majority_code"] if r["unanimous"] else r["arbiter_code"],
+        lambda r: (
+            r["majority_code"] if r["unanimous"]
+            else pd.NA if r["needs_hand_review"]
+            else r["arbiter_code"]
+        ),
         axis=1,
     ).astype("Int64")
 
@@ -927,7 +642,7 @@ def process_chunk(
     # Drop internal effective-vote columns before returning
     df = df.drop(columns=[f"{m}_eff" for m in panel_models])
 
-    return df, model_times, all_fallback_events
+    return df, model_times, all_fallback_events, overrode_both_events
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -978,6 +693,26 @@ def process_single_chunk(
 
 def _chunk_path(chunks_dir: Path, start: int, end: int) -> Path:
     return chunks_dir / f"chunk_{start:05d}_{end:05d}.csv"
+
+
+def write_cohort_labelled_csv(merged: pd.DataFrame, out_dir: Path, cohort: str) -> Path:
+    """
+    Export the minimal `{cohort}_labelled.csv` alongside the full diagnostic
+    CSV, matching medevac_db's expected schema for attach_cedis_labels.py:
+        row, text, text_original, cedis_code, cedis_complaint, needs_hand_review
+    `row` is 1-based and must align with the source chief_complaints_phi.csv
+    row order (see medevac_db's docs/COMMERCIAL_CEDIS_LABELING_HANDOFF.md).
+    `cedis_code` is blank for rows where the arbiter overruled both panel
+    models (`needs_hand_review == True`) — treat those as unlabelled until a
+    human resolves them, not as a confident final answer.
+    """
+    labelled = merged.rename(
+        columns={"final_code": "cedis_code", "final_complaint": "cedis_complaint"}
+    )[["row", "text", "text_original", "cedis_code", "cedis_complaint",
+       "needs_hand_review"]]
+    out_path = out_dir / f"{cohort}_labelled.csv"
+    labelled.to_csv(out_path, index=False)
+    return out_path
 
 
 def print_agreement_summary(df: pd.DataFrame, n: int,
@@ -1032,33 +767,43 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--chunk-size", type=int, default=CHUNK_SIZE)
     p.add_argument("--resume", action="store_true",
                    help="Skip chunks whose output CSV already exists")
-    p.add_argument("--raw",    default=RAW_CSV_DEFAULT)
-    p.add_argument("--col",    default=TEXT_COL)
+    p.add_argument(
+        "--cohort",
+        choices=COHORTS,
+        default=None,
+        help=(
+            "Which cohort to run: medevac or commercial. Resolves --raw's default "
+            "from local_paths.cfg's raw_cc_medevac/raw_cc_commercial keys, and "
+            "--out-dir's default naming, unless overridden explicitly."
+        ),
+    )
+    p.add_argument("--raw",    default=None,
+                   help="Raw/de-identified chief complaint CSV. Defaults to the "
+                        "path for --cohort from local_paths.cfg if --cohort is set.")
+    p.add_argument("--col",    default=TEXT_COL,
+                   help=f"Text column name (default: {TEXT_COL!r} — same for both cohorts)")
     p.add_argument("--abbrev", default=ABBREV_DEFAULT,
                    help="Abbreviations CSV (pass 'none' to skip)")
     p.add_argument("--save-expanded", action="store_true",
                    help="Write abbreviation-expanded text back to a _expanded.csv")
     p.add_argument("--out-dir", default=None)
     p.add_argument(
-        "--panel",
-        choices=["default", "trial-aihub"],
-        default="default",
-        help=(
-            "default = gpt-4o-mini + llama-4-scout + claude (APIM key, Gemini arbiter); "
-            "trial-aihub = gpt-5-nano + gpt-4-1-nano + grok-3-mini (PRIMARY_API_KEY, o4-mini arbiter)"
-        ),
-    )
-    p.add_argument(
         "--single-model",
         default=None,
         metavar="MODEL",
         help=(
             "Skip the panel entirely and classify every row with a single model. "
-            "E.g. --single-model claude-3-5-sonnet. "
+            "E.g. --single-model claude-opus-4-6. "
             "Output columns: row, text, {model}, {model}_conf, final_code, final_complaint."
         ),
     )
-    return p.parse_args()
+    args = p.parse_args()
+    if args.raw is None:
+        if args.cohort is None:
+            p.error("--raw is required when --cohort is not set")
+        cfg_key   = COHORT_RAW_KEYS[args.cohort]
+        args.raw = _LOCAL.get(cfg_key, COHORT_RAW_DEFAULTS[args.cohort])
+    return args
 
 
 def main() -> None:
@@ -1146,10 +891,9 @@ def main() -> None:
             )
             total_elapsed += elapsed
 
-            if abbrevs:
-                orig = texts_raw.iloc[start_idx + chunk_start:
-                                      start_idx + chunk_end].tolist()
-                chunk_df.insert(2, "text_original", orig)
+            orig = texts_raw.iloc[start_idx + chunk_start:
+                                  start_idx + chunk_end].tolist()
+            chunk_df.insert(2, "text_original", orig)
 
             chunk_df.to_csv(out_path, index=False)
             n_coded = chunk_df["final_code"].notna().sum()
@@ -1173,25 +917,25 @@ def main() -> None:
         print(f"Coded: {n_coded}/{n} ({100*n_coded/n:.0f}%)")
         print(f"Model time  : {total_elapsed:.0f}s  ({total_elapsed/n:.1f}s/row)")
         print(f"Wall time   : {total_wall:.0f}s  ({total_wall/n:.1f}s/row)")
+
+        if args.cohort:
+            labelled_path = write_cohort_labelled_csv(merged, out_dir, args.cohort)
+            print(f"Labelled CSV : {labelled_path}")
         return
 
     # ── Panel / arbiter selection ─────────────────────────────────────────────
-    if args.panel == "trial-aihub":
-        active_panel_models = TRIAL_PANEL_MODELS
-        active_arbiter_name = TRIAL_ARBITER_MODEL
-        def active_arbiter_fn(dispute_rows, cedis_code_list, valid_codes):
-            return run_trial_arbiter(dispute_rows, cedis_code_list,
-                                     valid_codes, active_panel_models)
-    else:
-        active_panel_models = PANEL_MODELS
-        active_arbiter_name = ARBITER_MODEL
-        active_arbiter_fn   = run_arbiter
+    active_panel_models = PANEL_MODELS
+    active_arbiter_name = ARBITER_MODEL
+    active_arbiter_fn    = run_arbiter
 
     # ── Output directory ──────────────────────────────────────────────────────
-    stamp    = datetime.now().strftime("%Y%m%d_%H%M%S")
-    panel_tag = f"_{args.panel}" if args.panel != "default" else ""
-    out_dir  = Path(args.out_dir) if args.out_dir else \
-               Path(f"output/panel_benchmark/panel{panel_tag}_{stamp}_n{total_rows}")
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if args.out_dir:
+        out_dir = Path(args.out_dir)
+    elif args.cohort:
+        out_dir = Path(f"output/panel_{args.cohort}_{stamp}_n{total_rows}")
+    else:
+        out_dir = Path(f"output/panel_benchmark/panel_{stamp}_n{total_rows}")
     chunks_dir = out_dir / "chunks"
     chunks_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1213,6 +957,7 @@ def main() -> None:
         m: 0.0 for m in active_panel_models + [active_arbiter_name]
     }
     all_fallback_events: list[dict]      = []
+    all_hand_review_events: list[dict]   = []
     t_wall = time.time()
 
     cs = args.chunk_size
@@ -1233,18 +978,20 @@ def main() -> None:
         print(f"\nChunk {row_start:5d}–{row_end:5d} : {len(chunk_texts)} rows",
               flush=True)
 
-        chunk_df, chunk_times, chunk_fallbacks = process_chunk(
+        chunk_df, chunk_times, chunk_fallbacks, chunk_hand_review = process_chunk(
             chunk_texts, row_start, cedis_code_list, valid_codes, system,
             panel_models=active_panel_models,
             arbiter_fn=active_arbiter_fn,
         )
         all_fallback_events.extend(chunk_fallbacks)
+        all_hand_review_events.extend(chunk_hand_review)
 
-        # Store original text when abbreviations were expanded
-        if abbrevs:
-            orig = texts_raw.iloc[start_idx + chunk_start:
-                                  start_idx + chunk_end].tolist()
-            chunk_df.insert(2, "text_original", orig)
+        # Always keep the pre-abbreviation-expansion original text alongside
+        # the (possibly expanded) text shown to the model — medevac_db's
+        # {cohort}_labelled.csv schema expects both columns unconditionally.
+        orig = texts_raw.iloc[start_idx + chunk_start:
+                              start_idx + chunk_end].tolist()
+        chunk_df.insert(2, "text_original", orig)
 
         chunk_df.to_csv(out_path, index=False)
         for m, t in chunk_times.items():
@@ -1268,10 +1015,16 @@ def main() -> None:
     final_path = out_dir / "panel_results.csv"
     merged.to_csv(final_path, index=False)
 
+    labelled_path = None
+    if args.cohort:
+        labelled_path = write_cohort_labelled_csv(merged, out_dir, args.cohort)
+
     # ── Summary ───────────────────────────────────────────────────────────────
     n = len(merged)
     print(f"\n{'='*65}")
     print(f"Merged {n} rows → {final_path}")
+    if labelled_path:
+        print(f"Labelled CSV (medevac_db schema) → {labelled_path}")
     print(f"\nPer-model wall time (sum across chunks):")
     for m, t in all_model_times.items():
         tag = "(arbiter)" if m == active_arbiter_name else "(panel) "
@@ -1291,10 +1044,24 @@ def main() -> None:
     else:
         print(f"\n  No arbiter fallbacks")
 
+    # ── Hand-review report ────────────────────────────────────────────────────
+    # Rows where the arbiter overruled BOTH panel models. final_code is left
+    # blank (Int64 NA) for these rows in panel_results.csv / the labelled CSV —
+    # we do not take the arbiter's word as final without a human sign-off.
+    if all_hand_review_events:
+        hr_df   = pd.DataFrame(all_hand_review_events)
+        hr_path = out_dir / "needs_hand_review.csv"
+        hr_df.to_csv(hr_path, index=False)
+        print(f"\n  Needs hand review (arbiter overruled both panel models): "
+              f"{len(all_hand_review_events)} row(s)")
+        print(f"   Report → {hr_path}")
+    else:
+        print(f"\n  No rows need hand review")
+
     # ── Metadata JSON ─────────────────────────────────────────────────────────
     meta = {
         "run_timestamp":   stamp,
-        "panel_config":    args.panel,
+        "cohort":          args.cohort,
         "panel_models":    active_panel_models,
         "arbiter_model":   active_arbiter_name,
         "total_rows":      n,
@@ -1305,16 +1072,26 @@ def main() -> None:
         "total_wall_s":    round(total_wall, 1),
         "unanimous_pct":   round(100 * merged["unanimous"].sum() / n, 1),
         "arbiter_nulls":   len(all_fallback_events),
+        "needs_hand_review": len(all_hand_review_events),
     }
     (out_dir / "metadata.json").write_text(json.dumps(meta, indent=2))
     print(f"Metadata      → {out_dir / 'metadata.json'}")
 
     # Sample output
     display_cols = (["row", "text"] + active_panel_models +
-                    ["unanimous", "arbiter_code", "final_code", "final_complaint"])
+                    ["unanimous", "arbiter_code", "final_code", "final_complaint",
+                     "needs_hand_review"])
     print(f"\nSample (first 10 rows):")
     print(merged[[c for c in display_cols if c in merged.columns]]
           .head(10).to_string(index=False))
+
+    # Arbitrated rows' rationale — the audit trail to spot-check adjudication
+    # quality on cohorts with no gold-standard labels available.
+    arbitrated = merged[merged["arbiter_code"].notna()] if "arbiter_code" in merged.columns else merged.iloc[0:0]
+    if len(arbitrated):
+        print(f"\nArbitrated rows (first 10, with rationale):")
+        print(arbitrated[["row", "text", "arbiter_code", "arbiter_rationale"]]
+              .head(10).to_string(index=False))
 
 
 if __name__ == "__main__":

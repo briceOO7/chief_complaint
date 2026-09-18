@@ -1,0 +1,171 @@
+domain,code,complaint,category
+Cardiovascular,001,Cardiac arrest (non-traumatic),Cardiovascular
+Cardiovascular,002,Cardiac arrest (traumatic),Cardiovascular
+Cardiovascular,003,Chest pain—cardiac features,Cardiovascular
+Cardiovascular,004,Chest pain—non-cardiac features,Cardiovascular
+Cardiovascular,005,Palpitations/irregular heart beat,Cardiovascular
+Cardiovascular,006,Hypertension,Cardiovascular
+Cardiovascular,007,General weakness,Cardiovascular
+Cardiovascular,008,Syncope/pre-syncope,Cardiovascular
+Cardiovascular,009,"Edema, generalized",Cardiovascular
+Cardiovascular,010,Bilateral leg swelling/edema,Cardiovascular
+Cardiovascular,011,Cool pulseless limb,Cardiovascular
+Cardiovascular,012,Unilateral reddened hot limb,Cardiovascular
+ENT - Ears,051,Earache,ENT
+ENT - Ears,052,"Foreign body, ear",ENT
+ENT - Ears,053,Loss of hearing,ENT
+ENT - Ears,054,Tinnitus,ENT
+ENT - Ears,055,"Discharge, ear",ENT
+ENT - Ears,056,Ear injury,ENT
+ENT - Mouth/Throat/Neck,101,Dental/gum problem,ENT
+ENT - Mouth/Throat/Neck,102,Facial trauma,ENT
+ENT - Mouth/Throat/Neck,103,Sore throat,ENT
+ENT - Mouth/Throat/Neck,104,Neck swelling/pain,ENT
+ENT - Mouth/Throat/Neck,105,Neck trauma,ENT
+ENT - Mouth/Throat/Neck,106,Difficulty swallowing/dysphagia,ENT
+ENT - Mouth/Throat/Neck,107,Facial pain (non-traumatic/non-dental),ENT
+ENT - Nose,151,Epistaxis,ENT
+ENT - Nose,152,Nasal congestion/hay fever,ENT
+ENT - Nose,153,"Foreign body, nose",ENT
+ENT - Nose,154,URTI complaints,ENT
+ENT - Nose,155,Nasal trauma,ENT
+Environmental,201,Frostbite/cold injury,Environmental
+Environmental,202,Noxious inhalation,Environmental
+Environmental,203,Electrical injury,Environmental
+Environmental,204,Chemical exposure,Environmental
+Environmental,205,Hypothermia,Environmental
+Environmental,206,Near drowning,Environmental
+Gastrointestinal,251,Abdominal pain,Gastrointestinal
+Gastrointestinal,252,Anorexia,Gastrointestinal
+Gastrointestinal,253,Constipation,Gastrointestinal
+Gastrointestinal,254,Diarrhea,Gastrointestinal
+Gastrointestinal,255,Foreign body in rectum,Gastrointestinal
+Gastrointestinal,256,Groin pain/mass,Gastrointestinal
+Gastrointestinal,257,Nausea and/or vomiting,Gastrointestinal
+Gastrointestinal,258,Rectal/perineal pain,Gastrointestinal
+Gastrointestinal,259,Vomiting blood,Gastrointestinal
+Gastrointestinal,260,Blood in stool/melena,Gastrointestinal
+Gastrointestinal,261,Jaundice,Gastrointestinal
+Gastrointestinal,262,Hiccoughs,Gastrointestinal
+Gastrointestinal,263,Abdominal mass/distention,Gastrointestinal
+Gastrointestinal,264,Anal/rectal trauma,Gastrointestinal
+Gastrointestinal,265,Oral/esophageal foreign body,Gastrointestinal
+Gastrointestinal,266,Feeding difficulties in newborn,Gastrointestinal
+Gastrointestinal,267,Neonatal jaundice,Gastrointestinal
+Genitourinary,301,Flank pain,Genitourinary
+Genitourinary,302,Hematuria,Genitourinary
+Genitourinary,303,Genital discharge/lesion,Genitourinary
+Genitourinary,304,Penile swelling,Genitourinary
+Genitourinary,305,Scrotal pain and/or swelling,Genitourinary
+Genitourinary,306,Urinary retention,Genitourinary
+Genitourinary,307,UTI complaints,Genitourinary
+Genitourinary,308,Oliguria,Genitourinary
+Genitourinary,309,Polyuria,Genitourinary
+Genitourinary,310,Genital trauma,Genitourinary
+Mental Health,351,Depression/suicidal/deliberate self-harm,Mental Health
+Mental Health,352,Anxiety/situational crisis,Mental Health
+Mental Health,353,Hallucinations/delusions,Mental Health
+Mental Health,354,Insomnia,Mental Health
+Mental Health,355,Violent/homicidal behaviour,Mental Health
+Mental Health,356,Social problem,Mental Health
+Mental Health,358,Bizarre behaviour,Mental Health
+Mental Health,359,Concern for patient's welfare,Mental Health
+Mental Health,360,Pediatric disruptive behaviour,Mental Health
+Neurologic,401,Altered level of consciousness,Neurologic
+Neurologic,402,Confusion,Neurologic
+Neurologic,403,Vertigo,Neurologic
+Neurologic,404,Headache,Neurologic
+Neurologic,405,Seizure,Neurologic
+Neurologic,406,Gait disturbance/ataxia,Neurologic
+Neurologic,407,Head injury,Neurologic
+Neurologic,408,Tremor,Neurologic
+Neurologic,409,Extremity weakness/symptoms of CVA,Neurologic
+Neurologic,410,Sensory loss/paresthesia,Neurologic
+Neurologic,411,Floppy child,Neurologic
+OB/GYN,451,Menstrual problems,OB/GYN
+OB/GYN,452,"Foreign body, vagina",OB/GYN
+OB/GYN,453,Vaginal discharge,OB/GYN
+OB/GYN,454,Sexual assault,OB/GYN
+OB/GYN,455,Vaginal bleed,OB/GYN
+OB/GYN,456,Labial swelling,OB/GYN
+OB/GYN,457,"Pregnancy issues, <20 weeks",OB/GYN
+OB/GYN,458,"Pregnancy issues, >20 weeks",OB/GYN
+OB/GYN,460,Vaginal pain/dyspareunia,OB/GYN
+Ophthalmology,502,"Chemical exposure, eye",Ophthalmology
+Ophthalmology,503,"Foreign body, eye",Ophthalmology
+Ophthalmology,504,Visual disturbance,Ophthalmology
+Ophthalmology,505,Eye pain,Ophthalmology
+Ophthalmology,506,"Red eye, discharge",Ophthalmology
+Ophthalmology,507,Photophobia,Ophthalmology
+Ophthalmology,508,Diplopia,Ophthalmology
+Ophthalmology,509,Periorbital swelling,Ophthalmology
+Ophthalmology,510,Eye trauma,Ophthalmology
+Ophthalmology,511,Re-check eye,Ophthalmology
+Orthopedic,551,Back pain,Orthopedic
+Orthopedic,552,Traumatic back/spine injury,Orthopedic
+Orthopedic,553,Amputation,Orthopedic
+Orthopedic,554,Upper extremity pain,Orthopedic
+Orthopedic,555,Lower extremity pain,Orthopedic
+Orthopedic,556,Upper extremity injury,Orthopedic
+Orthopedic,557,Lower extremity injury,Orthopedic
+Orthopedic,558,Joint(s) swelling,Orthopedic
+Orthopedic,559,Pediatric gait disorder/painful walk,Orthopedic
+Respiratory,651,Shortness of breath,Respiratory
+Respiratory,652,Respiratory arrest,Respiratory
+Respiratory,653,Cough/congestion,Respiratory
+Respiratory,654,Hyperventilation,Respiratory
+Respiratory,655,Hemoptysis,Respiratory
+Respiratory,656,Respiratory foreign body,Respiratory
+Respiratory,657,Allergic reaction,Respiratory
+Respiratory,658,Stridor,Respiratory
+Respiratory,659,Wheezing—no other complaints,Respiratory
+Respiratory,660,Apneic spells in infants,Respiratory
+Skin,701,Bite,Skin
+Skin,702,Sting,Skin
+Skin,703,Abrasion,Skin
+Skin,704,Laceration/puncture,Skin
+Skin,705,Burn,Skin
+Skin,706,Blood and body fluid exposure,Skin
+Skin,707,Pruritus,Skin
+Skin,708,Rash,Skin
+Skin,709,Localized swelling/redness,Skin
+Skin,710,Wound check,Skin
+Skin,711,Other skin conditions,Skin
+Skin,712,"Lumps, bumps, calluses",Skin
+Skin,713,"Redness/tenderness, breast",Skin
+Skin,714,Rule out infestation,Skin
+Skin,715,Cyanosis,Skin
+Skin,716,Spontaneous bruising,Skin
+Skin,717,"Foreign body, skin",Skin
+Substance Misuse,751,Substance misuse/intoxication,Substance Misuse
+Substance Misuse,752,Overdose ingestion,Substance Misuse
+Substance Misuse,753,Substance withdrawal,Substance Misuse
+Trauma,801,Major trauma—penetrating,Trauma
+Trauma,802,Major trauma—blunt,Trauma
+Trauma,803,Isolated chest trauma—penetrating,Trauma
+Trauma,804,Isolated chest trauma—blunt,Trauma
+Trauma,805,Isolated abdominal trauma—penetrating,Trauma
+Trauma,806,Isolated abdominal trauma—blunt,Trauma
+General and Minor,851,Exposure to communicable disease,Exposure to communicable disease
+General and Minor,852,Fever,Fever
+General and Minor,853,Hyperglycemia,Hyperglycemia
+General and Minor,854,Hypoglycemia,Hypoglycemia
+General and Minor,855,Direct referral for consultation,Direct referral for consultation
+General and Minor,856,Dressing change,Dressing change
+General and Minor,857,Removal staples/sutures,Removal staples/sutures
+General and Minor,858,Cast check,Cast check
+General and Minor,859,Imaging tests,Imaging tests
+General and Minor,860,Medical device problem,Medical device problem
+General and Minor,861,Prescription/medication request,Prescription/medication request
+General and Minor,862,Ring removal,Ring removal
+General and Minor,863,Abnormal lab values,Abnormal lab values
+General and Minor,864,Pallor/anemia,Pallor/anemia
+General and Minor,865,Post-operative complications,Post-operative complications
+General and Minor,866,Minor complaints NOS,Minor complaints NOS
+General and Minor,867,Inconsolable crying,Inconsolable crying
+General and Minor,868,Congenital problem in children,Congenital problem in children
+General and Minor,869,Newly Born,Newly Born
+General and Minor,888,Follow-up/Return Visit,Follow-up/Return Visit
+General and Minor,889,Well visit,Well visit
+General and Minor,891,Planned telehealth,Planned telehealth
+General and Minor,999,Unknown,Unknown

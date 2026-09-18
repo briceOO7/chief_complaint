@@ -1,11 +1,31 @@
-# Copy to local_paths.cfg and fill in paths for this machine.
+# Copy this file to local_paths.cfg and fill in the paths for this machine.
 # local_paths.cfg is gitignored — never commit it.
 #
-# Mac example:
-#   medevac_db = /Users/yourname/CursorProjects/medevac_db
+# Mac / dev machine example:
+#   raw_cc_medevac    = data/raw/chief_complaints_phi.csv
+#   raw_cc_commercial = data/raw/chief_complaints_phi_commercial.csv
+#   cc_column         = ValueTXT
+#   medevac_db        = /Users/yourname/CursorProjects/medevac_db
 #
-# Windows example (forward slashes):
-#   medevac_db = C:/Users/brian.rice/Python Projects/medevac_db
+# Windows PHI machine example (forward slashes) — both cohorts are exported by
+# medevac_db as de-identified NER corpora with an identical schema, so `--col`
+# defaults to ValueTXT for both:
+#   raw_cc_medevac    = C:/Users/brian.rice/Python Projects/medevac_db/data/synthetic/medevac/chief_complaints_phi_ner_corpus.csv
+#   raw_cc_commercial = C:/Users/brian.rice/Python Projects/medevac_db/data/synthetic/commercial/chief_complaints_phi_ner_corpus.csv
+#   cc_column         = ValueTXT
+#   medevac_db        = C:/Users/brian.rice/Python Projects/medevac_db
 
 [paths]
-medevac_db = /path/to/medevac_db
+# Path to the medevac cohort's de-identified chief complaint CSV
+# (PHI-adjacent — never commit this file). See medevac_db's
+# docs/COMMERCIAL_CEDIS_LABELING_HANDOFF.md for how this is generated.
+raw_cc_medevac     = data/raw/chief_complaints_phi.csv
+
+# Path to the commercial cohort's de-identified chief complaint CSV
+raw_cc_commercial  = data/raw/chief_complaints_phi_commercial.csv
+
+# Column name containing the free-text chief complaint — same for both cohorts
+cc_column          = ValueTXT
+
+# Path to a local clone of medevac_db (optional, used by export_to_medevac_db.py)
+medevac_db         = /path/to/medevac_db

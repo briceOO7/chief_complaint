@@ -8,22 +8,25 @@ venv/
 dist/
 build/
 
-# PHI data — never commit
-data/raw/
-data/hand_labels/*_phi*.csv
-data/hand_labels/medevac_labelled.csv
-data/hand_labels/training_cc.csv   # may contain un-deidentified text — review before committing
-data/results/*_phi*.csv            # any result file containing PHI columns
+# PHI data — NEVER commit anything in data/raw/
+data/raw/*
+!data/raw/README.md
+
+# Results (may contain PHI on PHI machine)
+data/results/*
+!data/results/.gitkeep
+
+# v2 gold-label reconciliation workspace (PHI-adjacent — produced on the PHI
+# machine from real medevac data; never commit). See docs/PHI_MACHINE_SETUP.md.
+data/gold_standard_v2_phi/
 
 # Model weights
-models/
+models/*
+!models/.gitkeep
 
-# Secrets
+# Secrets and machine-local config
 .env
 local_paths.cfg
-
-# Results with PHI
-data/results/*_phi*.csv
 
 # OS
 .DS_Store
@@ -32,12 +35,3 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints/
-
-# Allow these tracked files in otherwise-ignored dirs
-!data/hand_labels/chief_complaints_medevac_all_corpus_deid.csv
-!data/hand_labels/gold_labelled_combined_20260302_134139_n8819.csv
-!data/hand_labels/train.csv
-!data/hand_labels/test.csv
-!data/abbreviations/
-!data/results/.gitkeep
-!models/.gitkeep

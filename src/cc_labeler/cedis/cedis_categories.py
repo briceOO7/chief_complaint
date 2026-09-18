@@ -7,7 +7,7 @@ Category rules (from data/cedis_codes.csv):
   - ENT sub-domains (Ears / Mouth/Throat/Neck / Nose) are merged into "ENT".
   - All other clinical domains map to their domain name.
   - Every General and Minor code maps to its own complaint text, so that
-    Fever, Unknown, Follow-up visit, etc. each remain a distinct category.
+    Fever, Unknown, Follow-up/Return Visit, etc. each remain a distinct category.
 """
 
 from functools import lru_cache
@@ -41,7 +41,7 @@ def get_category(code: str | int | float | None) -> str | None:
         get_category("001")   → "Cardiovascular"
         get_category(1)       → "Cardiovascular"
         get_category("999")   → "Unknown"
-        get_category("888")   → "Follow-up visit"
+        get_category("888")   → "Follow-up/Return Visit"
         get_category("052")   → "ENT"
     """
     if code is None:
