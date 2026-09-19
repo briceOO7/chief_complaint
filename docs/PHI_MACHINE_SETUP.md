@@ -87,16 +87,16 @@ python scripts/llm_cedis_second_labeller.py \
     --model claude-haiku-4-5 \
     --max-rows 50
 
-# Test panel on first 50 rows
-python scripts/llm_cedis_panel.py \
-    --max-rows 50 \
-    --models claude-haiku-4-5 gpt-4-1-mini
+# Test panel on first 50 rows (panel/arbiter roster is fixed — see
+# PANEL_MODELS/ARBITER_MODEL in llm_cedis_panel.py, no --models flag)
+python scripts/llm_cedis_panel.py --rows 50 --cohort medevac
 ```
 
 ## 7. Full run
 
 ```bash
-python scripts/llm_cedis_panel.py --all --models gpt-4-1 claude-sonnet-4-6 gpt-5-4-mini
+python scripts/llm_cedis_panel.py --all --cohort medevac
+python scripts/llm_cedis_panel.py --all --cohort commercial
 ```
 
 ---

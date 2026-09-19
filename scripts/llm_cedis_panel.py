@@ -4,15 +4,18 @@ Multi-model CEDIS panel classifier — production-scale version.
 
 Two cheap models classify each chief complaint in parallel; a stronger
 adjudicator resolves every non-unanimous row. All three run against Stanford
-AI Hub (Azure AI Foundry + AWS Bedrock), using the shared model registry in
-llm_cedis_second_labeller.py.
+AI Hub's AWS Bedrock (Anthropic) endpoint, using the shared model registry in
+llm_cedis_second_labeller.py — deliberately avoiding the Azure AI Foundry
+endpoint, whose mandatory content moderation blocks routine, legitimate
+clinical-necessity content (assault, self-harm, overdose, etc.) common in
+real ED chief complaints.
 
 If the arbiter's pick agrees with neither panel model (i.e. it overruled
 both rather than just breaking a tie between them), the row's `final_code`
 is left blank and `needs_hand_review` is set to True instead of trusting the
 arbiter outright — see `needs_hand_review.csv` in the run's output dir.
 
-Panel    : gpt-4-1-mini (Azure AI Foundry) + claude-haiku-4-5 (AWS Bedrock)
+Panel    : claude-haiku-4-5 + claude-sonnet-4-5 (both AWS Bedrock)
 Arbiter  : claude-opus-4-6 (AWS Bedrock) — only invoked on disagreement
 
 See llm_cedis_second_labeller.py's MODEL_CONFIGS for the full model registry,
@@ -101,7 +104,22 @@ ERROR_SLEEP      = 1.0
 # See llm_cedis_second_labeller.py's MODEL_CONFIGS for backend details and a
 # documented list of currently-broken Bedrock models (opus-4-8/opus-5/sonnet-5)
 # to avoid using as the arbiter.
-PANEL_MODELS    = ["gpt-4-1-mini", "claude-haiku-4-5"]
+#
+# All three are Bedrock-backed (Anthropic), not a mix of Azure Foundry +
+# Bedrock. Real ED chief complaints routinely and legitimately describe
+# assault, sexual assault, self-harm, overdose, and other content that Azure
+# AI Foundry's mandatory content moderation blocks outright (see
+# ContentFilterError in llm_cedis_second_labeller.py) — confirmed in practice
+# on real medevac PHI, where gpt-4-1-mini (Azure) got its entire batch blocked
+# while claude-haiku-4-5 (Bedrock) sailed through the same rows. Azure's
+# filter can only be loosened via a formal Microsoft "modified content
+# filter" request through the AI Hub admins, which is not something we
+# control per-run — so for now, keep every model in this pipeline on the
+# Bedrock backend, which is materially more permissive for clinical-necessity
+# text. label_with_model() still isolates and retries batch-level content
+# filter blocks row-by-row as a safety net, in case any single row still
+# trips Anthropic's own moderation.
+PANEL_MODELS    = ["claude-haiku-4-5", "claude-sonnet-4-5"]
 ARBITER_MODEL   = "claude-opus-4-6"
 ARBITER_BATCH_SIZE          = 10   # disputes per arbiter API call
 CONFIDENCE_ABSTAIN_THRESHOLD = 1   # confidence <= this → abstain from vote
@@ -293,15 +311,41 @@ def label_with_model(model: str, texts: list[str],
                     confs.append(conf)
                 break
             except ContentFilterError as exc:
-                # Not transient — retrying identical content against the same
-                # model/policy will fail identically. Abstain immediately so
-                # the row falls through to the arbiter (a different backend/
-                # moderation stack) instead of wasting retries.
+                if len(batch) == 1:
+                    # Single row — this IS the offending content. Not
+                    # transient (retrying identical content against the same
+                    # model/policy fails identically), so abstain immediately
+                    # and let it fall through to the arbiter (a different
+                    # backend/moderation stack) instead of wasting retries.
+                    print(f"\n    [{model}] content filter blocked row: "
+                          f"{str(exc)[:100]} — abstaining, no retry",
+                          end=" ", flush=True)
+                    codes.append(None)
+                    confs.append(CONFIDENCE_ABSTAIN_THRESHOLD)
+                    break
+                # A batch-level block does NOT mean every row in it is
+                # offending — one flagged chief complaint can take the whole
+                # batch down with it. Isolate to individual calls so the
+                # other (legitimate) rows aren't needlessly abstained too;
+                # this matters a lot on real ED data, where assault/self-harm/
+                # overdose language is common and legitimate.
                 print(f"\n    [{model}] content filter blocked batch of "
-                      f"{len(batch)} row(s): {str(exc)[:100]} — abstaining, "
-                      f"no retry", end=" ", flush=True)
-                codes.extend([None] * len(batch))
-                confs.extend([CONFIDENCE_ABSTAIN_THRESHOLD] * len(batch))
+                      f"{len(batch)} row(s): {str(exc)[:100]} — retrying "
+                      f"individually to isolate offending row(s)",
+                      end=" ", flush=True)
+                for text in batch:
+                    try:
+                        results = _call_model(client, model, [text], system)
+                        c, conf = _parse_result(results[0], valid_codes)
+                        codes.append(c)
+                        confs.append(conf)
+                    except ContentFilterError:
+                        codes.append(None)
+                        confs.append(CONFIDENCE_ABSTAIN_THRESHOLD)
+                    except Exception:
+                        codes.append(None)
+                        confs.append(2)
+                    time.sleep(batch_slp)
                 break
             except Exception as exc:
                 print(f"\n    [{model}] batch attempt {attempt+1}: "
@@ -409,10 +453,10 @@ def run_arbiter(
     """
     Arbitrate all disputed rows with ARBITER_MODEL in batches of
     ARBITER_BATCH_SIZE. Falls back to per-row calls if a batch response is
-    malformed. No cross-vendor fallback model — the panel already spans two
-    backends/moderation stacks (Azure AI Foundry + AWS Bedrock) and the
-    arbiter itself runs on a third model, so a genuine content-filter block
-    here is recorded as a null rather than routed anywhere else.
+    malformed. Content-filter blocks are first isolated to the individual
+    offending row(s) (see the ContentFilterError handling below) — a genuine
+    per-row block is recorded as a null since there's no further fallback
+    model to route it to.
 
     Returns:
         finals          — list of final codes (one per dispute_row)
@@ -444,9 +488,25 @@ def run_arbiter(
             results    = _call_arbiter_batch(client, batch, system, active)
             batch_pairs = _parse_arbiter_results(results, valid_codes)
         except ContentFilterError as exc:
-            print(f"\n    [arbiter] content filter blocked batch of "
-                  f"{len(batch)} row(s): {str(exc)[:100]}", end=" ", flush=True)
-            batch_pairs = [(None, "")] * len(batch)
+            if len(batch) == 1:
+                print(f"\n    [arbiter] content filter blocked row: "
+                      f"{str(exc)[:100]}", end=" ", flush=True)
+                batch_pairs = [(None, "")]
+            else:
+                # Don't null the whole batch over one flagged case — isolate
+                # to individual calls so the other disputes still get
+                # resolved (see the matching panel-side fix above for why).
+                print(f"\n    [arbiter] content filter blocked batch of "
+                      f"{len(batch)} row(s): {str(exc)[:100]} — retrying "
+                      f"individually to isolate offending row(s)",
+                      end=" ", flush=True)
+                batch_pairs = []
+                for case in batch:
+                    try:
+                        results = _call_arbiter_batch(client, [case], system, active)
+                        batch_pairs.extend(_parse_arbiter_results(results, valid_codes))
+                    except Exception:
+                        batch_pairs.append((None, ""))
         except Exception as exc:
             print(f"\n    [arbiter] batch error: {type(exc).__name__}: "
                   f"{str(exc)[:80]} — falling back to per-row", end=" ", flush=True)
