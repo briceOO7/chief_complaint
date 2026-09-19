@@ -69,7 +69,15 @@ def _load_local_paths() -> configparser.SectionProxy | dict:
     cfg = configparser.ConfigParser()
     cfg_path = _PROJECT_ROOT / "local_paths.cfg"
     if cfg_path.exists():
-        cfg.read(cfg_path)
+        # Explicit encoding — without it, configparser falls back to the
+        # platform's locale-preferred encoding, which on Windows is usually
+        # the ANSI codepage (e.g. cp1252), not UTF-8. Any non-ASCII byte in
+        # the file (even in a comment line) then decodes as mojibake, and
+        # depending on where it lands can corrupt line parsing entirely
+        # (e.g. "MissingSectionHeaderError" on an otherwise-valid comment
+        # line). utf-8-sig also tolerates a BOM if the file was saved with
+        # one (e.g. by Notepad).
+        cfg.read(cfg_path, encoding="utf-8-sig")
         if cfg.has_section("paths"):
             return cfg["paths"]
     return {}

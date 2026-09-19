@@ -22,7 +22,9 @@ def _medevac_db_root() -> Path | None:
     cfg_path = ROOT / "local_paths.cfg"
     if cfg_path.exists():
         cfg = configparser.ConfigParser()
-        cfg.read(cfg_path)
+        # Explicit encoding — see llm_cedis_second_labeller.py's
+        # _load_local_paths() for why (Windows locale-encoding mojibake).
+        cfg.read(cfg_path, encoding="utf-8-sig")
         try:
             return Path(cfg["paths"]["medevac_db"])
         except KeyError:
