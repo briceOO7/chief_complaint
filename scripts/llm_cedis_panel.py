@@ -755,6 +755,35 @@ def _chunk_path(chunks_dir: Path, start: int, end: int) -> Path:
     return chunks_dir / f"chunk_{start:05d}_{end:05d}.csv"
 
 
+def _format_duration(seconds: float) -> str:
+    """Human-readable duration, e.g. 9045.0 -> '2h 30m'."""
+    seconds = max(0, int(seconds))
+    h, rem = divmod(seconds, 3600)
+    m, s   = divmod(rem, 60)
+    if h:
+        return f"{h}h {m:02d}m"
+    if m:
+        return f"{m}m {s:02d}s"
+    return f"{s}s"
+
+
+def _print_progress(rows_done: int, total_rows: int, t_wall_start: float) -> None:
+    """
+    Cumulative progress + ETA across the whole run, printed after every
+    chunk (including skipped/resumed ones) so an unattended run's log file
+    shows how far along it is and roughly how much longer it'll take —
+    without waiting for the final summary at the very end.
+    """
+    elapsed = time.time() - t_wall_start
+    pct     = 100 * rows_done / total_rows if total_rows else 100
+    rate    = rows_done / elapsed if elapsed > 0 else 0
+    remaining = total_rows - rows_done
+    eta = _format_duration(remaining / rate) if rate > 0 else "unknown"
+    print(f"    ── progress: {rows_done}/{total_rows} rows ({pct:.1f}%) — "
+          f"elapsed {_format_duration(elapsed)} — "
+          f"~{rate*60:.0f} rows/min — ETA {eta}", flush=True)
+
+
 def _restore_nullable_int_dtypes(df: pd.DataFrame,
                                   model_names: list[str] | None = None) -> pd.DataFrame:
     """
@@ -963,6 +992,7 @@ def main() -> None:
                 existing = pd.read_csv(out_path)
                 if len(existing) == len(chunk_texts):
                     print(f"\nChunk {row_start:5d}–{row_end:5d} : skipped (already done)")
+                    _print_progress(chunk_end, total_rows, t_wall)
                     continue
 
             print(f"\nChunk {row_start:5d}–{row_end:5d} : {len(chunk_texts)} rows",
@@ -981,6 +1011,7 @@ def main() -> None:
             n_coded = chunk_df["final_code"].notna().sum()
             print(f"\n    → saved {out_path.name}  coded={n_coded}/{len(chunk_df)}",
                   flush=True)
+            _print_progress(chunk_end, total_rows, t_wall)
 
         total_wall = time.time() - t_wall
         completed  = [p for p in chunk_paths if p.exists()]
@@ -1056,6 +1087,7 @@ def main() -> None:
             existing = pd.read_csv(out_path)
             if len(existing) == len(chunk_texts):
                 print(f"\nChunk {row_start:5d}–{row_end:5d} : skipped (already done)")
+                _print_progress(chunk_end, total_rows, t_wall)
                 continue
 
         print(f"\nChunk {row_start:5d}–{row_end:5d} : {len(chunk_texts)} rows",
@@ -1085,6 +1117,7 @@ def main() -> None:
         print(f"\n    → saved {out_path.name}  "
               f"unanimous={n_unan}/{n_ch} ({100*n_unan/n_ch:.0f}%)",
               flush=True)
+        _print_progress(chunk_end, total_rows, t_wall)
 
     total_wall = time.time() - t_wall
 
