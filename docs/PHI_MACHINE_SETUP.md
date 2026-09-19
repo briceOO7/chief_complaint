@@ -14,8 +14,20 @@ cd chief_complaint
 ```bash
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-panel.txt
 ```
+
+`requirements-panel.txt` installs only what the LLM panel/labeller scripts
+need (`pandas`, `requests`, `openai`, `python-dotenv`). Use the full
+`requirements.txt` only if you're also running the rule-based classifier or
+BERT fine-tuning on this machine — it additionally pulls in `torch`,
+`transformers`, `scikit-learn`, etc., which are large, slow to install, and
+unrelated to the panel/labeller workflow.
+
+On Windows, skip venv activation if PowerShell's execution policy blocks
+`Activate.ps1` — just call the venv's interpreter directly everywhere below,
+e.g. `.venv\Scripts\python.exe -m pip install -r requirements-panel.txt` and
+`.venv\Scripts\python.exe scripts\llm_cedis_panel.py ...`.
 
 ## 3. Configure local paths
 

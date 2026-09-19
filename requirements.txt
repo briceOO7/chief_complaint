@@ -1,5 +1,10 @@
 # chief_complaint — CEDIS chief complaint labeling and evaluation
 # Python 3.10+ required
+#
+# Only running the LLM panel/labeller (e.g. on the PHI machine)? Use
+# requirements-panel.txt instead — this full file also pulls in torch/
+# transformers/scikit-learn for the rule-based classifier + BERT fine-tuning,
+# which are large, slow, and not needed for panel/labeller work.
 
 # Core
 pandas>=2.0.0

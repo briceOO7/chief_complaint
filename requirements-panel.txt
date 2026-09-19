@@ -1,0 +1,15 @@
+# Minimal install for the LLM panel / labeller workflow only —
+# llm_cedis_panel.py, llm_cedis_second_labeller.py, smoke_test_aihub_models.py,
+# reconcile_gold_v2.py, apply_gold_v2_decisions.py, export_to_medevac_db.py.
+#
+# Use this instead of requirements.txt on the PHI machine (or anywhere you're
+# only running the panel/labeller, not the rule-based classifier or BERT
+# fine-tuning) — it skips torch/transformers/scikit-learn/etc., which are
+# large, slow to install, and unrelated to this workflow.
+#
+#   .venv\Scripts\python.exe -m pip install -r requirements-panel.txt
+
+pandas>=2.0.0
+requests>=2.28.0
+openai>=1.0.0
+python-dotenv>=1.0.0
