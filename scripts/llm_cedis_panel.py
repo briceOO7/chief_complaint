@@ -755,6 +755,28 @@ def _chunk_path(chunks_dir: Path, start: int, end: int) -> Path:
     return chunks_dir / f"chunk_{start:05d}_{end:05d}.csv"
 
 
+def _restore_nullable_int_dtypes(df: pd.DataFrame,
+                                  model_names: list[str] | None = None) -> pd.DataFrame:
+    """
+    Each chunk is written to CSV with proper pandas nullable Int64 columns
+    (e.g. arbiter_code, which is blank for every unanimous row), but
+    pd.read_csv() doesn't know about that dtype on the way back in — any
+    column with at least one blank comes back as plain float64, which
+    renders whole numbers as "999.0" instead of "999" in every downstream
+    consumer: the printed sample/rationale tables, panel_results.csv,
+    and (worse) the `cedis_code` column of {cohort}_labelled.csv. Restore
+    Int64 on every column we know is meant to hold whole CEDIS codes/confidences.
+    """
+    candidates = ["final_code", "arbiter_code", "majority_code",
+                  "n_confident", "n_distinct"]
+    for m in (model_names or []):
+        candidates += [m, f"{m}_conf", f"{m}_eff"]
+    for col in candidates:
+        if col in df.columns:
+            df[col] = df[col].astype("Int64")
+    return df
+
+
 def write_cohort_labelled_csv(merged: pd.DataFrame, out_dir: Path, cohort: str) -> Path:
     """
     Export the minimal `{cohort}_labelled.csv` alongside the full diagnostic
@@ -967,6 +989,7 @@ def main() -> None:
             return
 
         merged     = pd.concat([pd.read_csv(p) for p in completed], ignore_index=True)
+        merged     = _restore_nullable_int_dtypes(merged, [single_model])
         final_path = out_dir / "panel_results.csv"
         merged.to_csv(final_path, index=False)
 
@@ -1072,6 +1095,7 @@ def main() -> None:
         return
 
     merged = pd.concat([pd.read_csv(p) for p in completed], ignore_index=True)
+    merged = _restore_nullable_int_dtypes(merged, active_panel_models)
     final_path = out_dir / "panel_results.csv"
     merged.to_csv(final_path, index=False)
 

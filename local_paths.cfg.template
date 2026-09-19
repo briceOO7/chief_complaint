@@ -7,21 +7,34 @@
 #   cc_column         = ValueTXT
 #   medevac_db        = /Users/yourname/CursorProjects/medevac_db
 #
-# Windows PHI machine example (forward slashes) — both cohorts are exported by
-# medevac_db as de-identified NER corpora with an identical schema, so `--col`
-# defaults to ValueTXT for both:
-#   raw_cc_medevac    = C:/Users/brian.rice/Python Projects/medevac_db/data/synthetic/medevac/chief_complaints_phi_ner_corpus.csv
-#   raw_cc_commercial = C:/Users/brian.rice/Python Projects/medevac_db/data/synthetic/commercial/chief_complaints_phi_ner_corpus.csv
+# Windows PHI machine example (forward slashes) - THE REAL, NON-DE-IDENTIFIED
+# raw chief complaint export from medevac_db (data/final/{cohort}/chief_complaints_phi.csv),
+# NOT the data/synthetic/*/chief_complaints_phi_ner_corpus.csv NER-scrubbed
+# copy. The synthetic/NER corpus exists specifically so a non-PHI dev machine
+# can test the pipeline WITHOUT ever seeing raw PHI - on the actual secured
+# PHI machine, point at the real export so the panel classifies real text
+# instead of "<LOCATION>"/"<DATE_TIME>" placeholders:
+#   raw_cc_medevac    = C:/Users/brian.rice/Python Projects/medevac_db/data/final/medevac/chief_complaints_phi.csv
+#   raw_cc_commercial = C:/Users/brian.rice/Python Projects/medevac_db/data/final/commercial/chief_complaints_phi.csv
 #   cc_column         = ValueTXT
 #   medevac_db        = C:/Users/brian.rice/Python Projects/medevac_db
+#
+# Dev machine (no raw PHI access) - point at the de-identified NER corpus
+# instead, e.g.:
+#   raw_cc_medevac    = /Users/yourname/CursorProjects/medevac_db/data/synthetic/medevac/chief_complaints_phi_ner_corpus.csv
 
 [paths]
-# Path to the medevac cohort's de-identified chief complaint CSV
-# (PHI-adjacent — never commit this file). See medevac_db's
-# docs/COMMERCIAL_CEDIS_LABELING_HANDOFF.md for how this is generated.
+# Path to the medevac cohort's chief complaint CSV. On the PHI machine this
+# should be the REAL raw export (medevac_db's data/final/medevac/chief_complaints_phi.csv) -
+# never commit this file. See medevac_db's docs/COMMERCIAL_CEDIS_LABELING_HANDOFF.md
+# for how this is generated, and its scripts/attach_cedis_labels.py for why
+# row order/count here must exactly match medevac_labelled.csv (1-based `row`
+# column indexes into this file 0-based as row-1 - re-exporting or re-sorting
+# this file breaks that alignment silently).
 raw_cc_medevac     = data/raw/chief_complaints_phi.csv
 
-# Path to the commercial cohort's de-identified chief complaint CSV
+# Path to the commercial cohort's chief complaint CSV (same real-vs-NER-corpus
+# distinction as above).
 raw_cc_commercial  = data/raw/chief_complaints_phi_commercial.csv
 
 # Column name containing the free-text chief complaint — same for both cohorts
