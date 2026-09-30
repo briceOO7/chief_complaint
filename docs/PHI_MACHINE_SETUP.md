@@ -99,6 +99,31 @@ python scripts/llm_cedis_panel.py --all --cohort medevac
 python scripts/llm_cedis_panel.py --all --cohort commercial
 ```
 
+### Label cache (incremental runs)
+
+Every panel run reads and extends a per-cohort label cache at
+`data/results/label_cache/{cohort}.jsonl` (gitignored — it holds real chief
+complaint text). A complaint already labelled under the same method is never
+sent to the LLMs again, so after a new raw batch only the new complaints cost
+API calls. The run prints `Cached rows` / `New rows` before any API call.
+
+- Entries are keyed by a hash of the normalized text (NFKC, casefolded,
+  whitespace collapsed), not by row number, so new rows that shift the file
+  still hit the cache. Identical texts in a run are labelled once.
+- Each entry also carries a **method fingerprint**: `METHOD_VERSION` (in
+  `scripts/cedis_label_cache.py` — bump it by hand when the labelling logic
+  changes), the panel/arbiter model names and Bedrock model IDs, and a hash of
+  the prompts (which include `CODING_RULES` and the CEDIS code list) and of
+  `data/cedis_codes.csv`. Any change gives a new fingerprint, so old labels
+  stop being used. They are kept in the file, tagged with their fingerprint,
+  and `{cohort}.fingerprints.json` records what each fingerprint was.
+- `--reextract` ignores the cache and relabels every row (new labels are added
+  to the cache).
+
+```powershell
+.venv\Scripts\python.exe scripts\llm_cedis_panel.py --all --cohort commercial --reextract
+```
+
 ---
 
 ## Data layout
@@ -113,6 +138,7 @@ data/
     README.md
     chief_complaints_phi.csv    ← place your export here
   results/                      ← model output (gitignored on PHI machine)
+    label_cache/                ← panel label cache, one .jsonl per cohort (PHI, gitignored)
 ```
 
 > **Do not modify `data/gold_standard_v1_deid/`.**

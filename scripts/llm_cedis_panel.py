@@ -29,6 +29,10 @@ Designed for runs of 100 → 9,000+ rows with:
   - 1,000-row chunked output (recoverable if interrupted)
   - Resume support (skips chunks whose output file already exists)
   - Per-run metadata/timing JSON
+  - A persistent per-cohort label cache (cedis_label_cache.py, under the
+    gitignored data/results/label_cache/): a chief complaint already labelled
+    under the same method fingerprint is never sent to the LLMs again, and
+    identical texts within a run are labelled once. --reextract ignores it.
   - A minimal {cohort}_labelled.csv export matching medevac_db's expected
     schema (row, text, text_original, cedis_code, cedis_complaint,
     needs_hand_review), alongside the full diagnostic CSV for QA
@@ -42,6 +46,9 @@ Usage:
 
     # Resume interrupted run:
     python scripts/llm_cedis_panel.py --all --cohort medevac --resume --out-dir output/panel_medevac_20260305_.../
+
+    # Relabel everything, ignoring the label cache:
+    python scripts/llm_cedis_panel.py --all --cohort medevac --reextract
 
     # Different/explicit dataset or abbreviation file:
     python scripts/llm_cedis_panel.py --all --raw data/... --col ValueTXT --abbrev data/abbreviations/site_b.csv
@@ -73,6 +80,10 @@ from llm_cedis_second_labeller import (
     _LOCAL,
 )
 from abbreviations import load_abbreviations, expand_series
+from cedis_label_cache import (
+    CACHE_DIR_DEFAULT, METHOD_VERSION, LabelCache,
+    fingerprint, method_components, text_key,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -706,6 +717,117 @@ def process_chunk(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Label cache (see cedis_label_cache.py)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_INT_RESULT_COLS  = ("n_confident", "n_distinct", "majority_code", "arbiter_code", "final_code")
+_BOOL_RESULT_COLS = ("unanimous", "needs_hand_review")
+
+
+def result_columns(panel_models: list[str]) -> list[str]:
+    """process_chunk()'s per-row label columns (everything except row/text)."""
+    cols: list[str] = []
+    for m in panel_models:
+        cols += [m, f"{m}_conf"]
+    return cols + ["n_confident", "n_distinct", "unanimous", "majority_code",
+                   "arbiter_code", "arbiter_model", "arbiter_rationale",
+                   "needs_hand_review", "final_code", "final_complaint"]
+
+
+def build_method_fingerprint(cedis_code_list: str,
+                             panel_models: list[str] | None = None,
+                             arbiter_model: str | None = None) -> tuple[str, dict]:
+    panel_models  = panel_models or PANEL_MODELS
+    arbiter_model = arbiter_model or ARBITER_MODEL
+    prompts = [
+        _classification_system(cedis_code_list),
+        _classification_user(["{text}"]),
+        _arbiter_system(cedis_code_list),
+        f"abstain_threshold={CONFIDENCE_ABSTAIN_THRESHOLD}",
+    ]
+    comps = method_components(
+        panel_models, arbiter_model, MODEL_CONFIGS, prompts,
+        Path(__file__).parent.parent / "data" / "cedis_codes.csv",
+    )
+    return fingerprint(comps), comps
+
+
+def _hand_review_events(df: pd.DataFrame, panel_models: list[str]) -> list[dict]:
+    events = []
+    for idx in df.index[df["needs_hand_review"].astype(bool)]:
+        events.append({
+            "row":               df.loc[idx, "row"],
+            "text":              df.loc[idx, "text"],
+            "votes":             {m: str(df.loc[idx, m]) for m in panel_models},
+            "arbiter_code":      df.loc[idx, "arbiter_code"],
+            "arbiter_rationale": df.loc[idx, "arbiter_rationale"],
+        })
+    return events
+
+
+def process_chunk_cached(
+    chunk_texts: list[str],
+    chunk_keys: list[str],
+    chunk_start_row: int,
+    cache: LabelCache,
+    cedis_code_list: str,
+    valid_codes: set[int],
+    system: str,
+    panel_models: list[str] | None = None,
+    arbiter_fn=None,
+) -> tuple[pd.DataFrame, dict, list[dict], list[dict], int]:
+    """
+    Like process_chunk(), but only texts whose key is not in `cache` go to the
+    models — each distinct text once — and their results are written to the
+    cache before the chunk's rows are assembled from it.
+    Returns (result_df, timing_dict, fallback_events, hand_review_events, n_labelled).
+    """
+    panel_models = panel_models or PANEL_MODELS
+    cols = result_columns(panel_models)
+
+    todo: dict[str, str] = {}
+    for k, t in zip(chunk_keys, chunk_texts):
+        if k not in cache and k not in todo:
+            todo[k] = t
+
+    model_times: dict[str, float] = {}
+    fallbacks: list[dict] = []
+    if todo:
+        n_cached = sum(1 for k in chunk_keys if k not in todo)
+        print(f"    cache: {n_cached} row(s) cached, labelling {len(todo)} distinct "
+              f"new text(s)", end=" ", flush=True)
+        new_df, model_times, fallbacks, _ = process_chunk(
+            list(todo.values()), 1, cedis_code_list, valid_codes, system,
+            panel_models=panel_models, arbiter_fn=arbiter_fn,
+        )
+        cache.add_many([
+            (k, t, {c: new_df.iloc[i][c] for c in cols})
+            for i, (k, t) in enumerate(todo.items())
+        ])
+    else:
+        print(f"    cache: all {len(chunk_texts)} row(s) cached — no API calls",
+              end=" ", flush=True)
+
+    hits = [cache.get(k) for k in chunk_keys]
+    df = pd.DataFrame({
+        "row":  range(chunk_start_row, chunk_start_row + len(chunk_texts)),
+        "text": chunk_texts,
+    })
+    for c in cols:
+        df[c] = [h.get(c) for h in hits]
+    for m in panel_models:
+        df[m]           = df[m].astype("Int64")
+        df[f"{m}_conf"] = df[f"{m}_conf"].astype("Int64")
+    for c in _INT_RESULT_COLS:
+        df[c] = df[c].astype("Int64")
+    for c in _BOOL_RESULT_COLS:
+        df[c] = df[c].fillna(False).astype(bool)
+    df["final_complaint"] = df["final_complaint"].fillna("")
+
+    return df, model_times, fallbacks, _hand_review_events(df, panel_models), len(todo)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -908,6 +1030,22 @@ def parse_args() -> argparse.Namespace:
             "Output columns: row, text, {model}, {model}_conf, final_code, final_complaint."
         ),
     )
+    p.add_argument(
+        "--reextract", action="store_true",
+        help=(
+            "Ignore the label cache and send every row to the panel again. "
+            "Identical texts in this run are still labelled once, and the new "
+            "labels are added to the cache (older entries are kept)."
+        ),
+    )
+    p.add_argument(
+        "--cache-dir", default=str(CACHE_DIR_DEFAULT),
+        help=(
+            "Label cache directory (default: data/results/label_cache, gitignored). "
+            "Holds real chief-complaint text on the PHI machine — keep it in a "
+            "gitignored PHI location."
+        ),
+    )
     args = p.parse_args()
     if args.raw is None:
         if args.cohort is None:
@@ -1053,17 +1191,39 @@ def main() -> None:
     chunks_dir = out_dir / "chunks"
     chunks_dir.mkdir(parents=True, exist_ok=True)
 
+    _, cedis_code_list = load_cedis()
+    valid_codes = load_valid_codes()
+    system      = _classification_system(cedis_code_list)
+
+    # ── Label cache: count cached vs new rows before any API call ────────────
+    method_fp, method_comps = build_method_fingerprint(
+        cedis_code_list, active_panel_models, active_arbiter_name
+    )
+    cache_cohort = args.cohort or f"custom_{Path(args.raw).stem}"
+    cache = LabelCache(Path(args.cache_dir), cache_cohort, method_fp, method_comps)
+    if not args.reextract:
+        cache.load()
+    keys_list = [text_key(t) for t in texts_list]
+    n_cached_rows = sum(1 for k in keys_list if k in cache)
+    n_new_rows    = total_rows - n_cached_rows
+    n_new_texts   = len({k for k in keys_list if k not in cache})
+
     print(f"\nPanel         : {', '.join(active_panel_models)}")
     print(f"Arbiter       : {active_arbiter_name}")
     print(f"Total rows    : {total_rows}")
     print(f"Chunk size    : {args.chunk_size}")
     print(f"Output        : {out_dir}")
     print(f"Resume        : {args.resume}")
-    print("=" * 65)
-
-    _, cedis_code_list = load_cedis()
-    valid_codes = load_valid_codes()
-    system      = _classification_system(cedis_code_list)
+    print(f"Label cache   : {cache.path}")
+    print(f"Method        : fingerprint {method_fp} (METHOD_VERSION {METHOD_VERSION})")
+    if args.reextract:
+        print(f"Re-extract    : cache ignored — every row goes to the panel")
+    elif cache.n_other_fingerprints:
+        print(f"                ({cache.n_other_fingerprints} older entries under other "
+              f"fingerprints are kept but not used)")
+    print(f"Cached rows   : {n_cached_rows}")
+    print(f"New rows      : {n_new_rows}  ({n_new_texts} distinct text(s) to send to the LLMs)")
+    print("=" * 65, flush=True)
 
     # ── Chunk loop ────────────────────────────────────────────────────────────
     chunk_paths: list[Path] = []
@@ -1072,6 +1232,7 @@ def main() -> None:
     }
     all_fallback_events: list[dict]      = []
     all_hand_review_events: list[dict]   = []
+    n_labelled_this_run = 0
     t_wall = time.time()
 
     cs = args.chunk_size
@@ -1080,6 +1241,7 @@ def main() -> None:
         row_start   = start_idx + chunk_start + 1   # 1-based source row number
         row_end     = start_idx + chunk_end
         chunk_texts = texts_list[chunk_start:chunk_end]
+        chunk_keys  = keys_list[chunk_start:chunk_end]
         out_path    = _chunk_path(chunks_dir, row_start, row_end)
         chunk_paths.append(out_path)
 
@@ -1087,17 +1249,24 @@ def main() -> None:
             existing = pd.read_csv(out_path)
             if len(existing) == len(chunk_texts):
                 print(f"\nChunk {row_start:5d}–{row_end:5d} : skipped (already done)")
+                if "needs_hand_review" in existing.columns:
+                    existing = _restore_nullable_int_dtypes(existing, active_panel_models)
+                    all_hand_review_events.extend(
+                        _hand_review_events(existing, active_panel_models))
                 _print_progress(chunk_end, total_rows, t_wall)
                 continue
 
         print(f"\nChunk {row_start:5d}–{row_end:5d} : {len(chunk_texts)} rows",
               flush=True)
 
-        chunk_df, chunk_times, chunk_fallbacks, chunk_hand_review = process_chunk(
-            chunk_texts, row_start, cedis_code_list, valid_codes, system,
+        (chunk_df, chunk_times, chunk_fallbacks, chunk_hand_review,
+         n_labelled) = process_chunk_cached(
+            chunk_texts, chunk_keys, row_start, cache,
+            cedis_code_list, valid_codes, system,
             panel_models=active_panel_models,
             arbiter_fn=active_arbiter_fn,
         )
+        n_labelled_this_run += n_labelled
         all_fallback_events.extend(chunk_fallbacks)
         all_hand_review_events.extend(chunk_hand_review)
 
@@ -1148,6 +1317,8 @@ def main() -> None:
         if t > 0:
             print(f"  {m:<35} {tag}  {t:.0f}s  ({t/n:.1f}s/row)")
     print(f"\nTotal wall-clock time: {total_wall:.0f}s  ({total_wall/n:.1f}s/row)")
+    print(f"Label cache: {n_labelled_this_run} distinct text(s) labelled this run, "
+          f"{n_cached_rows} row(s) came from the cache → {cache.path}")
 
     print_agreement_summary(merged, n, panel_models=active_panel_models)
 
@@ -1190,6 +1361,15 @@ def main() -> None:
         "unanimous_pct":   round(100 * merged["unanimous"].sum() / n, 1),
         "arbiter_nulls":   len(all_fallback_events),
         "needs_hand_review": len(all_hand_review_events),
+        "label_cache": {
+            "path":               str(cache.path),
+            "fingerprint":        method_fp,
+            "method_version":     METHOD_VERSION,
+            "reextract":          args.reextract,
+            "cached_rows_at_start": n_cached_rows,
+            "new_rows_at_start":  n_new_rows,
+            "texts_labelled_this_run": n_labelled_this_run,
+        },
     }
     (out_dir / "metadata.json").write_text(json.dumps(meta, indent=2))
     print(f"Metadata      → {out_dir / 'metadata.json'}")
