@@ -1247,7 +1247,14 @@ def main() -> None:
 
         if args.resume and out_path.exists():
             existing = pd.read_csv(out_path)
-            if len(existing) == len(chunk_texts):
+            same_texts = (
+                len(existing) == len(chunk_texts)
+                and [text_key(t) for t in existing["text"].fillna("").astype(str)] == chunk_keys
+            )
+            if not same_texts:
+                print(f"\nChunk {row_start:5d}–{row_end:5d} : existing chunk file has "
+                      f"different texts (source rows shifted) — rebuilding")
+            else:
                 print(f"\nChunk {row_start:5d}–{row_end:5d} : skipped (already done)")
                 if "needs_hand_review" in existing.columns:
                     existing = _restore_nullable_int_dtypes(existing, active_panel_models)

@@ -218,6 +218,16 @@ def test_resume_skips_done_chunks(monkeypatch, work, calls):
     pd.testing.assert_frame_equal(first, second)
 
 
+def test_resume_rebuilds_chunks_when_rows_shift(monkeypatch, work, calls):
+    _run(monkeypatch, work, BASE[:6], "--resume")
+    calls.log.clear()
+    shifted = ["fever"] + BASE[:5]
+    out = _run(monkeypatch, work, shifted, "--resume")
+    assert calls.log == []
+    assert out["text"].tolist() == shifted
+    assert out["cedis_code"].iloc[0] == 257
+
+
 def test_default_cache_dir_is_gitignored():
     if shutil.which("git") is None or not (REPO / ".git").exists():
         pytest.skip("not a git checkout")
