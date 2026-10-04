@@ -161,6 +161,49 @@ def load_split_csvs(
     return train_df, test_df
 
 
+# Visit-type codes that must never be dropped from training or evaluation,
+# however few examples they have: 888 Follow-up/Return Visit, 889 Well visit,
+# 891 Planned telehealth.
+PROTECTED_CODES = frozenset({"888", "889", "891"})
+MIN_EXAMPLES_PER_CODE = 3
+
+
+def drop_sparse_codes(
+    df: pd.DataFrame,
+    label_col: str = "cedis_code",
+    min_examples: int = MIN_EXAMPLES_PER_CODE,
+) -> pd.DataFrame:
+    """Drop rows whose code has fewer than ``min_examples`` rows, except PROTECTED_CODES."""
+    counts = df[label_col].value_counts()
+    sparse = counts[counts < min_examples].index
+    rare = [c for c in sparse if str(c) not in PROTECTED_CODES]
+    kept_sparse = sorted(str(c) for c in sparse if str(c) in PROTECTED_CODES)
+    if kept_sparse:
+        logger.warning(
+            "Keeping protected visit code(s) with <%d examples: %s",
+            min_examples, kept_sparse,
+        )
+    if rare:
+        logger.warning(
+            "Dropping %d rows for codes with <%d examples: %s\n"
+            "Consider using --label-col domain for sparse datasets.",
+            int(df[label_col].isin(rare).sum()), min_examples, sorted(rare),
+        )
+        df = df[~df[label_col].isin(rare)]
+    return df
+
+
+def can_stratify(int_labels, test_size: float) -> bool:
+    """True when sklearn can stratify a split: every class has >= 2 rows and the
+    test split is at least as large as the number of classes."""
+    counts = np.bincount(np.asarray(int_labels))
+    counts = counts[counts > 0]
+    if len(counts) < 2 or counts.min() < 2:
+        return False
+    n_test = int(np.ceil(test_size * counts.sum()))
+    return bool(n_test >= len(counts) and (counts.sum() - n_test) >= len(counts))
+
+
 def load_annotations(
     annotation_csv: Path,
     label_col: str,
@@ -197,16 +240,7 @@ def load_annotations(
         logger.info("Dropped %d blank/unknown rows", before - len(df))
 
     if label_col == "cedis_code":
-        # Require ≥3 examples per code — warn and drop sparse labels
-        counts = df[label_col].value_counts()
-        rare = counts[counts < 3].index
-        if len(rare):
-            logger.warning(
-                "Dropping %d rows for codes with <3 examples: %s\n"
-                "Consider using --label-col domain for sparse datasets.",
-                len(df[df[label_col].isin(rare)]), sorted(rare),
-            )
-            df = df[~df[label_col].isin(rare)]
+        df = drop_sparse_codes(df, label_col)
 
     cedis = _load_cedis_lookup()
     logger.info("Valid examples: %d across %d '%s' classes",
@@ -341,7 +375,7 @@ def train(
         # 80 / 10 / 10 split
         X_tr, X_te_all, y_tr, y_te_all = train_test_split(
             texts, int_labels, test_size=0.20, random_state=42,
-            stratify=int_labels if len(le.classes_) > 1 else None,
+            stratify=int_labels if can_stratify(int_labels, 0.20) else None,
         )
         X_val, X_te, y_val, y_te = train_test_split(X_te_all, y_te_all, test_size=0.50, random_state=42)
 
